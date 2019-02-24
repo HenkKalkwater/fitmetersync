@@ -1,6 +1,9 @@
 # Fit Meter Sync 
 This tool syncs your 3DS step meter with the Fit Meter via the IR port of the 3DS.
 
+# Contributing
+If you have a Wii Fit Meter and a 3DS (or another way to read data from the fit meter), could you create an Issue with the only issue template right now?
+
 # Requirements
 * A 3DS
 * A Wii U Fit Meter
