@@ -20,6 +20,7 @@ assignees: HenkKalkwater
     00 00 00 00
 
 # Fit Meter Data
+* kCal: 324
 * Steps taken: 1303
 * Altitude: -7m
 * Time: 20:12
