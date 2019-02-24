@@ -24,6 +24,7 @@ assignees: HenkKalkwater
 * Steps taken: 1303
 * Altitude: -7m
 * Time: 20:12
+* Date: 24-02-2019
 * Temperature: 22.8 °C
 
 # Other data
