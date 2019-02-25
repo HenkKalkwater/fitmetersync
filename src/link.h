@@ -10,7 +10,6 @@
 #include <iomanip>
 
 namespace FMS {
-	static Handle iruHandle;
     void startTransfer();
     void printIfError(Result result);
 	
