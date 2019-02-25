@@ -4,11 +4,16 @@ This tool syncs your 3DS step meter with the Fit Meter via the IR port of the 3D
 # Contributing
 If you have a Wii Fit Meter and a 3DS (or another way to read data from the fit meter), could you create an Issue with the only issue template right now?
 
+Suggestions about the protocol are welcome, as well as pull requests as long as they are somehow relevant to the roadmap or 
+
 # Requirements
 * A 3DS
 * A Wii U Fit Meter
 
 # Roadmap
+
+## Before v0.1 <-- We are here
+* Document parts of the protocol
 
 ## v0.1
 * Read the steps from the Fit Meter
