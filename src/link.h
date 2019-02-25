@@ -10,8 +10,11 @@
 #include <iomanip>
 
 namespace FMS {
+	static Handle iruHandle;
     void startTransfer();
     void printIfError(Result result);
+	
+	Result getRecvFinishedEvent(Handle* handle);
 }
 
 #endif //LINK_H

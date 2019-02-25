@@ -23,9 +23,16 @@ void FMS::startTransfer() {
     u64 realSlept = 0;
     while (1) {
         printIfError(IRU_StartRecvTransfer(SIZE, 0));
+		Handle* waitEvent;
+		
+		printIfError(getRecvFinishedEvent(waitEvent));
+		std::cout << "Sleeping" << std::endl;
+		printIfError(svcWaitSynchronization(*waitEvent, U64_MAX));
+		std::cout << "Done sleeping" << std::endl;
+		
         // Where's my sleep?
-        for (int i = 0; i < 9999; i++)
-            std::cout << i << "\r" << std::flush;
+        //for (int i = 0; i < 9999; i++)
+            //std::cout << i << "\r" << std::flush;
         // Sleep for a little.
         
         hidScanInput();
@@ -61,4 +68,19 @@ void FMS::printIfError(Result ret) {
         u32 level = R_LEVEL(ret);
         std::cout << "Lvl: " << level << "; Smry: " << R_SUMMARY(ret) << "; Mdl: " << R_MODULE(ret) << "; Desc: " << R_DESCRIPTION(ret) << std::endl;
     }
+}
+
+Result FMS::getRecvFinishedEvent(Handle* handle) {
+	Result ret = 0;
+	u32 *cmdbuf = getThreadCommandBuffer();
+	
+	cmdbuf[0] = IPC_MakeHeader(0xE,0,0); // 0xE0000
+	
+	if(R_FAILED(ret = svcSendSyncRequest(iruGetServHandle())))return ret;
+	
+	ret = (Result)cmdbuf[1];
+	
+	handle = (Handle*) cmdbuf[3];
+	
+	return ret;
 }
