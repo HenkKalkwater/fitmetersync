@@ -1,0 +1,1 @@
+This file contains the raw bytes of the handshake protocol (See DOCUMENTATION.md). You should read this in groups of 16 bytes. Currently, the first 8 bytes received by the 3DS from the Wii Fit Meter by long pressing the middle button and the second 8 bytes is what is being sent back from the Fit Meter after the 3DS sends the first 8 bytes back. 
