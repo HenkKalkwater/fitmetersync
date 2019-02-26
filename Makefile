@@ -50,7 +50,7 @@ APP_TITLE		:=  	Fit Meter Sync $(VERSTRING)
 APP_DESCRIPTION		:=	Syncs your steps with the Wii U Fit Meter and coins.
 APP_AUTHOR		:=	Henk Kalkwater
 
-IP_ADDRESS		:= 192.168.2.2
+IP_ADDRESS		:= 192.168.2.9
 
 #---------------------------------------------------------------------------------
 # options for code generation

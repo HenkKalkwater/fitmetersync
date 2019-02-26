@@ -7,6 +7,9 @@ void FMS::startTransfer() {
     u8* data;
     data = (u8*) memalign(SIZE, SIZE);
     
+    u8 firstShake[8] = {0xA5, 0x00, 0x84, 0x01, 0x03, 0x04, 0x0A, 0x50};
+    u8 secondShake[8] = {0xA5, 0x00, 0x84, 0x01, 0x04, 0x04, 0x4C, 0x93};
+    
 	Result ret = iruInit((u32*) data, SIZE);
     printIfError(ret);
 
@@ -17,6 +20,11 @@ void FMS::startTransfer() {
     IRU_SetBitRate(3);
     
     u32 receivedSize;
+    
+    printBytes(secondShake, 8, true);
+    std::cout << std::hex << ":: CRC: " << (crc8_arr(secondShake, 7) & 0xFF) << std::dec << std::endl;
+    printIfError(IRU_StartSendTransfer(secondShake, 8));
+    printIfError(IRU_WaitSendTransfer());
     while (1) {
         printIfError(IRU_StartRecvTransfer(SIZE, 0));
 		Handle waitEvent;
@@ -42,28 +50,27 @@ void FMS::startTransfer() {
             printIfError(res);
             break;
         }
-        std::cout << std::endl << ":: Received " << receivedSize << " bytes!" << std::endl;
+        //std::cout << std::endl << ":: Received " << receivedSize << " bytes!" << std::endl;
         
-        //u32 contains 4 bytes, so we have to divide by 4
-        std::cout << "   ";
-        for (u32 i = 0; i < receivedSize; i++){
-            // An u32 consists of 4 bytes.
-            //for (int j = 24; j >= 0; j -= 8) {
-                // Split up the 4-byte number to 1 byte hexadecimal numbers.
-                //std::cout << std::hex << std::setw(2) << std::setfill('0') << ((data[i] >> j) & 0xFF) << " ";
-            //}
-            std::cout << std::hex << std::setw(2) << std::setfill('0') << (data[i] & 0xFF) << " ";
-            
-            if ((i + 1) % 4 == 0) std::cout << " ";
-            if ((i + 1) % 8 == 0) std::cout << std::endl << "   ";
-            // << " " << ((data[i] >> 16) & 0xFF) << " " << ((data[i] >> 18) & 0xFF) << " " << (data[i] & 0xFF) << " " << std::endl
+        //if(data[4] == 0x3) {
+            //memcpy(writableData, data, receivedSize);
+        //}
+        printBytes(data, receivedSize, false);
+        // Prevent implicit uint8_t to char conversions
+        std::cout << ":: CRC: " << std::hex << (crc8_arr(data, receivedSize - 1) & 0xFF) << std::dec << std::endl;
+        if (true) { //data[4] == 0x4) {
+            //std::cout << "   increasing 5th byte." << std::endl;
+            //writableData[3] = 0x0;
+            //writableData[4] = 0x3;
+            //std::cout << ":: Sending the received data back..." << std::endl;
+            if (data[4] == 0x3) {
+                printBytes(secondShake, 8, true);
+                printIfError(IRU_StartSendTransfer(secondShake, receivedSize));
+            }
+            printIfError(IRU_WaitSendTransfer());
+            //std::cout << "   Done sending data back" << std::endl;
         }
-        std::cout << std::endl;
-        std::cout << ":: Sending the received data back..." << std::endl;
-        printIfError(IRU_StartSendTransfer(data, receivedSize));
-        printIfError(IRU_WaitSendTransfer());
-        std::cout << "   Done sending data back" << std::endl;
-        std::cout << std::dec << std::endl;
+        
     }
     std::cout << ":: Stopped listening" << std::endl;
     iruExit();
@@ -74,6 +81,20 @@ void FMS::printIfError(Result ret) {
         std::cout << "   Result " << std::hex << ret << ": " << std::dec << osStrError(ret) << std::endl;
         u32 level = R_LEVEL(ret);
         std::cout << "   Lvl: " << level << "; Smry: " << R_SUMMARY(ret) << "; Mdl: " << R_MODULE(ret) << "; Desc: " << R_DESCRIPTION(ret) << std::endl;
+    }
+}
+
+void FMS::printBytes(u8* bytes, size_t size, bool sender) {
+    if (sender) {
+        std::cout << "-> ";
+    } else {
+        std::cout << "<- ";
+    }
+    for (u32 i = 0; i < size; i++){
+        std::cout << std::hex << std::setw(2) << std::setfill('0') << (bytes[i] & 0xFF) << " ";
+        
+        if ((i + 1) % 4 == 0) std::cout << " ";
+        if ((i + 1) % 8 == 0) std::cout << std::endl;
     }
 }
 

@@ -35,3 +35,6 @@ Suggestions about the protocol are welcome, as well as pull requests as long as 
 * [The contributers to this project](https://github.com/RedInquisitive/3DS-Remote), because I lost a lot of hope until I encountered that project.
 * [This guy who is reverse engineering the Pokewalker, which seems to be similar to the Wii Fit Meter](https://gbatemp.net/threads/pokewalker-hacking.419462/)
 * The [3DBREW page about IR](https://www.3dbrew.org/wiki/IR_Services)
+
+# Included code from
+* [This CRC-implementation](http://www.rajivchakravorty.com/source-code/uncertainty/multimedia-sim/html/crc8_8c-source.html)
