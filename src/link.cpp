@@ -10,7 +10,7 @@ void FMS::startTransfer() {
 	Result ret = iruInit((u32*) data, SIZE);
     printIfError(ret);
 
-    std::cout << "Press (B) to stop receiving data." << std::endl;
+    std::cout << "   Please turn on the Fit Meter and long press \n   the Fit Meter middle button within 5 seconds." << std::endl;
     // The frequency of the Pokewalker is about 116 279,07 and it looks a lot like a Wii Fit U meter.
     // Let's try that frequency, because you have to do something.
     // The closest 
@@ -22,7 +22,8 @@ void FMS::startTransfer() {
 		Handle waitEvent;
 		
 		printIfError(getRecvFinishedEvent(&waitEvent));
-		printIfError(svcWaitSynchronization(waitEvent, U64_MAX));
+        // Wait a maximum of 5 seconds.
+		Result res = svcWaitSynchronization(waitEvent, 5000000000);
         printIfError(svcClearEvent(waitEvent));
 		
         // Where's my sleep?
@@ -31,16 +32,20 @@ void FMS::startTransfer() {
         // Sleep for a little.
         
         hidScanInput();
-        if (hidKeysDown() & KEY_B)
-            break;
         printIfError(IRU_WaitRecvTransfer(&receivedSize));
         
-        if (receivedSize == 0)  {
-            continue;
+        if (receivedSize == 0 && R_DESCRIPTION(res) == 0x3FE)  {
+            std::cout << "   No data detected within 5 seconds. " << std::endl;
+            break;
+        } else if (receivedSize == 0 ){
+            std::cout << "   No data detected and no timeout." << std::endl;
+            printIfError(res);
+            break;
         }
-        std::cout << "Received " << receivedSize << " bytes!" << std::endl;
+        std::cout << std::endl << ":: Received " << receivedSize << " bytes!" << std::endl;
         
         //u32 contains 4 bytes, so we have to divide by 4
+        std::cout << "   ";
         for (u32 i = 0; i < receivedSize; i++){
             // An u32 consists of 4 bytes.
             //for (int j = 24; j >= 0; j -= 8) {
@@ -48,14 +53,16 @@ void FMS::startTransfer() {
                 //std::cout << std::hex << std::setw(2) << std::setfill('0') << ((data[i] >> j) & 0xFF) << " ";
             //}
             std::cout << std::hex << std::setw(2) << std::setfill('0') << (data[i] & 0xFF) << " ";
-            if ((i + 1) % 8 == 0)
-                std::cout << std::endl;
+            
+            if ((i + 1) % 4 == 0) std::cout << " ";
+            if ((i + 1) % 8 == 0) std::cout << std::endl << "   ";
             // << " " << ((data[i] >> 16) & 0xFF) << " " << ((data[i] >> 18) & 0xFF) << " " << (data[i] & 0xFF) << " " << std::endl
         }
-        std::cout << "Sending data back" << std::endl;
+        std::cout << std::endl;
+        std::cout << ":: Sending the received data back..." << std::endl;
         printIfError(IRU_StartSendTransfer(data, receivedSize));
         printIfError(IRU_WaitSendTransfer());
-        std::cout << "Done sending data back" << std::endl;
+        std::cout << "   Done sending data back" << std::endl;
         std::cout << std::dec << std::endl;
     }
     std::cout << ":: Stopped listening" << std::endl;
@@ -64,9 +71,9 @@ void FMS::startTransfer() {
 
 void FMS::printIfError(Result ret) {
     if (ret != 0) {
-        std::cout << "Error " << ret << ": " << osStrError(ret) << std::endl;
+        std::cout << "   Result " << std::hex << ret << ": " << std::dec << osStrError(ret) << std::endl;
         u32 level = R_LEVEL(ret);
-        std::cout << "Lvl: " << level << "; Smry: " << R_SUMMARY(ret) << "; Mdl: " << R_MODULE(ret) << "; Desc: " << R_DESCRIPTION(ret) << std::endl;
+        std::cout << "   Lvl: " << level << "; Smry: " << R_SUMMARY(ret) << "; Mdl: " << R_MODULE(ret) << "; Desc: " << R_DESCRIPTION(ret) << std::endl;
     }
 }
 

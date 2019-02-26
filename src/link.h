@@ -10,6 +10,7 @@
 #include <iomanip>
 
 namespace FMS {
+    void receiveData();
     void startTransfer();
     void printIfError(Result result);
 	
