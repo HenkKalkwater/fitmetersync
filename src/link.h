@@ -17,6 +17,8 @@ namespace FMS {
     void startTransfer();
     void printIfError(Result result);
     void printBytes(u8* bytes, size_t size, bool sender);
+    extern u8 curByte;
+    extern u8 curByte2;
 	
 	Result getRecvFinishedEvent(Handle* handle);
 }

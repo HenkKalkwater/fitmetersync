@@ -1,5 +1,8 @@
 #include "link.h"
 
+u8 FMS::curByte = 0;
+u8 FMS::curByte2 = 1;
+
 void FMS::startTransfer() {
     std::cout << ":: Start listening" << std::endl;
     
@@ -8,7 +11,7 @@ void FMS::startTransfer() {
     data = (u8*) memalign(SIZE, SIZE);
     
     u8 firstShake[8] = {0xA5, 0x00, 0x84, 0x01, 0x03, 0x04, 0x0A, 0x50};
-    u8 secondShake[8] = {0xA5, 0x00, 0x84, 0x01, 0x04, 0x04, 0x4C, 0x93};
+    u8 secondShake[8] = {0xA5, 0x00, 0x84, 0x01, 0x04, 0x04, 0x4C, 0x00};
     
 	Result ret = iruInit((u32*) data, SIZE);
     printIfError(ret);
@@ -21,15 +24,13 @@ void FMS::startTransfer() {
     
     u32 receivedSize;
     
-    printBytes(secondShake, 8, true);
-    std::cout << std::hex << ":: CRC: " << (crc8_arr(secondShake, 7) & 0xFF) << std::dec << std::endl;
     printIfError(IRU_StartSendTransfer(secondShake, 8));
     printIfError(IRU_WaitSendTransfer());
+    Handle waitEvent;
+    printIfError(getRecvFinishedEvent(&waitEvent));
     while (1) {
         printIfError(IRU_StartRecvTransfer(SIZE, 0));
-		Handle waitEvent;
 		
-		printIfError(getRecvFinishedEvent(&waitEvent));
         // Wait a maximum of 5 seconds.
 		Result res = svcWaitSynchronization(waitEvent, 5000000000);
         printIfError(svcClearEvent(waitEvent));
@@ -57,17 +58,25 @@ void FMS::startTransfer() {
         //}
         printBytes(data, receivedSize, false);
         // Prevent implicit uint8_t to char conversions
-        std::cout << ":: CRC: " << std::hex << (crc8_arr(data, receivedSize - 1) & 0xFF) << std::dec << std::endl;
         if (true) { //data[4] == 0x4) {
             //std::cout << "   increasing 5th byte." << std::endl;
             //writableData[3] = 0x0;
             //writableData[4] = 0x3;
             //std::cout << ":: Sending the received data back..." << std::endl;
-            if (data[4] == 0x3) {
+            if (data[4] == 0x3 || data[4] == 0x4) {
+                // Skip 4, because it makes the meter think the connection failed.
+                if (curByte == 4 && curByte2 == 4)
+                    curByte2 = 5;
+                if (curByte == 0xFF)
+                    curByte2++;
+                secondShake[1] = curByte++;
+                //secondShake[5] = curByte2;
+                secondShake[6] += 1;
+                secondShake[7] = crc8_arr(secondShake, 7);
                 printBytes(secondShake, 8, true);
                 printIfError(IRU_StartSendTransfer(secondShake, receivedSize));
+                printIfError(IRU_WaitSendTransfer());
             }
-            printIfError(IRU_WaitSendTransfer());
             //std::cout << "   Done sending data back" << std::endl;
         }
         
