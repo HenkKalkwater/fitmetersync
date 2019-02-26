@@ -1,0 +1,11 @@
+
+fitmetersync.smdh
+fitmetersync.elf
+build/main.o
+build/main.d
+build/link.o
+build/link.d
+build/fitmetersync.map
+build/fitmetersync.lst
+build/crc.o
+build/crc.d

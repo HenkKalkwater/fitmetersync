@@ -46,9 +46,9 @@ GRAPHICS	:=	gfx
 ROMFS		:=	romfs
 GFXBUILD	:=	$(ROMFS)/gfx
 
-APP_TITLE		:=  	Fit Meter Sync $(VERSTRING)
+APP_TITLE		:=  	Fit Meter Sync $(VERSTRING) (mod version)
 APP_DESCRIPTION		:=	Syncs your steps with the Wii U Fit Meter and coins.
-APP_AUTHOR		:=	Henk Kalkwater
+APP_AUTHOR		:=	Martijn Brouwer
 
 IP_ADDRESS		:= 192.168.2.9
 
