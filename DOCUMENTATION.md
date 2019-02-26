@@ -3,7 +3,9 @@ The Fit Meter seems to send data via IrDA-SIR with a bit rate of 115200 bits per
 
 # Handshake?
 When pressing the send data button, the fit meter immediately sends 32 bytes.  
-The 3th byte seems to always be 03, except when I reply back with the same data the fit meter sent. Instead, it will be 04 then.
+The 1st-4th byte seem to always stay the same. Maybe this is an ID of the fit meter?  
+The 5th byte seems to always be 03, except when I reply back with the same data the fit meter sent. Instead, it will be 04 then.  
+The 6th byte seems to always be 04.  
 The 7th byte seems to increase by one each time an attempt to send data is made.  
 The 8th byte seems to change, but I have no idea by which amount and why.  
 ~~Bytes 9-32 seem to be always zero?~~ This seemed to be an error in my program, I forgot to divide by 4.  
