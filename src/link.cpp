@@ -3,7 +3,7 @@
 u8 FMS::curByte = 0;
 u8 FMS::curByte2 = 1;
 
-void FMS::startTransfer(bool first = true) {
+void FMS::startTransfer(int first = 0) {
     std::cout << ":: Start listening" << std::endl;
     
     const size_t SIZE = 0x1000;
@@ -13,7 +13,6 @@ void FMS::startTransfer(bool first = true) {
     u8 firstShake[8] = {0xA5, 0x00, 0x84, 0x01, 0x03, 0x04, 0x70, 0x31};
 	int firstshakedone = 0;
     u8 secondShake[8] = {0xA5, 0x00, 0x84, 0x01, 0x04, 0x04, 0x57, 0xd2};
-	u8 thirdShake[8] = { 0xA5, 0x00, 0x84, 0x01, 0x04, 0x04, 0xFF, 0x83 };
 	u8 dataSend[8];
 	std::copy(firstShake, firstShake + 8, dataSend);
 	Result ret = iruInit((u32*) data, SIZE);
@@ -38,7 +37,7 @@ void FMS::startTransfer(bool first = true) {
 		Result res = svcWaitSynchronization(waitEvent, 5000000000);
         printIfError(svcClearEvent(waitEvent));
 
-		if (first) { //data[4] == 0x4) {
+		if (first == 0) { //data[4] == 0x4) {
 			//std::cout << "   increasing 5th byte." << std::endl;
 			//writableData[3] = 0x0;
 			//writableData[4] = 0x3;
@@ -87,7 +86,7 @@ void FMS::startTransfer(bool first = true) {
         printBytes(data, receivedSize, false);
         // Prevent implicit uint8_t to char conversions
         
-		if (!first) { //data[4] == 0x4) {
+		if (first == 1) { //data[4] == 0x4) {
 			//std::cout << "   increasing 5th byte." << std::endl;
 			//writableData[3] = 0x0;
 			//writableData[4] = 0x3;
@@ -109,6 +108,13 @@ void FMS::startTransfer(bool first = true) {
 				firstshakedone++;
 			}
 			//std::cout << "   Done sending data back" << std::endl;
+		}
+		if (first == 2) {
+			std::copy(data, data + 8, dataSend);
+			dataSend[7] = crc8_arr(dataSend, 7);
+			printBytes(dataSend, 8, true);
+			printIfError(IRU_StartSendTransfer(dataSend, receivedSize));
+			printIfError(IRU_WaitSendTransfer());
 		}
     }
     std::cout << ":: Stopped listening" << std::endl;

@@ -14,7 +14,7 @@
 
 namespace FMS {
     void receiveData();
-    void startTransfer(bool first);
+    void startTransfer(int first);
     void printIfError(Result result);
     void printBytes(u8* bytes, size_t size, bool sender);
     extern u8 curByte;
