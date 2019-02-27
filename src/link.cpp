@@ -31,6 +31,7 @@ void FMS::startTransfer(int first = 0, bool editdata = false) {
     printIfError(ret);
 
 	if (editdata == true) {
+		consoleClear();
 		std::string temp = FMS::u8tostring(firstShake, 8);
 		const char * c = temp.c_str();
 		std::cout << "original: " << temp << std::endl;
@@ -45,7 +46,6 @@ void FMS::startTransfer(int first = 0, bool editdata = false) {
 		swkbdSetLearningData(&swkbd, &swkbdLearning, reload, false);
 		reload = true;
 		button = swkbdInputText(&swkbd, mybuf, sizeof(mybuf));
-		consoleClear();
 		std::cout << button << std::endl;
 		std::cout << mybuf << std::endl;
 		return;
@@ -175,11 +175,11 @@ void FMS::printBytes(u8* bytes, size_t size, bool sender) {
         if ((i + 1) % 8 == 0) std::cout << std::endl;
     }
 }
-std::string FMS::u8tostring(u8* bytes, size_t size) {
+std::string FMS::u8tostring(u8* bites, size_t syze) {
 	std::string returnstring;
 	std::stringstream buffer;
-	for (u32 i = 0; i < size; i++) {
-		buffer << std::hex << std::setw(2) << std::setfill('0') << (bytes[i] & 0xFF) << " ";
+	for (u32 i = 0; i < syze; i++) {
+		buffer << std::hex << std::setw(2) << std::setfill('0') << (bites[i] & 0xFF) << " ";
 
 		if ((i + 1) % 4 == 0) buffer << " ";
 	}
