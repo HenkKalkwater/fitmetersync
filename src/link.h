@@ -9,7 +9,6 @@
 #include <malloc.h>
 #include <iomanip>
 #include <string.h>
-
 #include "crc.h"
 
 namespace FMS {
@@ -17,6 +16,7 @@ namespace FMS {
     void startTransfer(int first, bool editdata);
     void printIfError(Result result);
     void printBytes(u8* bytes, size_t size, bool sender);
+	std::string u8tostring(u8* bytes, size_t size);
     extern u8 curByte;
     extern u8 curByte2;
 	

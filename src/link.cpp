@@ -1,5 +1,7 @@
 #include "link.h"
 
+#include <sstream>
+
 u8 FMS::curByte = 0;
 u8 FMS::curByte2 = 1;
 
@@ -29,10 +31,13 @@ void FMS::startTransfer(int first = 0, bool editdata = false) {
     printIfError(ret);
 
 	if (editdata == true) {
+		std::string temp = FMS::u8tostring(firstShake, 8);
+		const char * c = temp.c_str();
+		cout << "original: " << temp << std::endl;
 		didit = true;
 		swkbdInit(&swkbd, SWKBD_TYPE_NORMAL, 3, -1);
 		swkbdSetInitialText(&swkbd, mybuf);
-		swkbdSetHintText(&swkbd, "Please enter hex values");
+		swkbdSetHintText(&swkbd, c);
 		swkbdSetButton(&swkbd, SWKBD_BUTTON_LEFT, "Cancel", false);
 		swkbdSetButton(&swkbd, SWKBD_BUTTON_RIGHT, "Modify", true);
 		static bool reload = false;
@@ -169,6 +174,17 @@ void FMS::printBytes(u8* bytes, size_t size, bool sender) {
         if ((i + 1) % 4 == 0) std::cout << " ";
         if ((i + 1) % 8 == 0) std::cout << std::endl;
     }
+}
+std::string FMS::u8tostring(u8* bytes, size_t size) {
+	std::string returnstring;
+	std::stringstream buffer;
+	for (u32 i = 0; i < size; i++) {
+		buffer << std::hex << std::setw(2) << std::setfill('0') << (bytes[i] & 0xFF) << " ";
+
+		if ((i + 1) % 4 == 0) buffer << " ";
+	}
+	returnstring = buffer.str();
+	return returnstring;
 }
 
 Result FMS::getRecvFinishedEvent(Handle* handle) {
