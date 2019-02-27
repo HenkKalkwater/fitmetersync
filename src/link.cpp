@@ -33,7 +33,7 @@ void FMS::startTransfer(int first = 0, bool editdata = false) {
 	if (editdata == true) {
 		std::string temp = FMS::u8tostring(firstShake, 8);
 		const char * c = temp.c_str();
-		cout << "original: " << temp << std::endl;
+		std::cout << "original: " << temp << std::endl;
 		didit = true;
 		swkbdInit(&swkbd, SWKBD_TYPE_NORMAL, 3, -1);
 		swkbdSetInitialText(&swkbd, mybuf);
