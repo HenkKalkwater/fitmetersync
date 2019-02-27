@@ -5,6 +5,15 @@ u8 FMS::curByte2 = 1;
 
 u8 secondShake[8] = { 0xA5, 0x00, 0x84, 0x01, 0x04, 0x04, 0x57, 0xd2 };
 u8 firstShake[8] = { 0xA5, 0x00, 0x84, 0x01, 0x03, 0x04, 0x70, 0x31 };
+
+//copied from keyboard example:
+static SwkbdState swkbd;
+static char mybuf[60];
+static SwkbdStatusData swkbdStatus;
+static SwkbdLearningData swkbdLearning;
+SwkbdButton button = SWKBD_BUTTON_NONE;
+bool didit = false;
+
 void FMS::startTransfer(int first = 0, bool editdata = false) {
     std::cout << ":: Start listening" << std::endl;
     
