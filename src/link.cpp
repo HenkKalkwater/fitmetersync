@@ -3,6 +3,8 @@
 u8 FMS::curByte = 0;
 u8 FMS::curByte2 = 1;
 
+u8 secondShake[8] = { 0xA5, 0x00, 0x84, 0x01, 0x04, 0x04, 0x57, 0xd2 };
+u8 firstShake[8] = { 0xA5, 0x00, 0x84, 0x01, 0x03, 0x04, 0x70, 0x31 };
 void FMS::startTransfer(int first = 0, bool editdata = false) {
     std::cout << ":: Start listening" << std::endl;
     
@@ -10,16 +12,28 @@ void FMS::startTransfer(int first = 0, bool editdata = false) {
     u8* data;
     data = (u8*) memalign(SIZE, SIZE);
 
-    u8 firstShake[8] = {0xA5, 0x00, 0x84, 0x01, 0x03, 0x04, 0x70, 0x31};
 	int firstshakedone = 0;
-    u8 secondShake[8] = {0xA5, 0x00, 0x84, 0x01, 0x04, 0x04, 0x57, 0xd2};
+    
 	u8 dataSend[8];
 	std::copy(firstShake, firstShake + 8, dataSend);
 	Result ret = iruInit((u32*) data, SIZE);
     printIfError(ret);
 
 	if (editdata == true) {
-		//do some hex edit magic
+		didit = true;
+		swkbdInit(&swkbd, SWKBD_TYPE_NORMAL, 3, -1);
+		swkbdSetInitialText(&swkbd, mybuf);
+		swkbdSetHintText(&swkbd, "Please enter hex values");
+		swkbdSetButton(&swkbd, SWKBD_BUTTON_LEFT, "Cancel", false);
+		swkbdSetButton(&swkbd, SWKBD_BUTTON_RIGHT, "Modify", true);
+		static bool reload = false;
+		swkbdSetStatusData(&swkbd, &swkbdStatus, reload, true);
+		swkbdSetLearningData(&swkbd, &swkbdLearning, reload, false);
+		reload = true;
+		button = swkbdInputText(&swkbd, mybuf, sizeof(mybuf));
+		consoleClear();
+		std::cout << button << std::endl;
+		std::cout << mybuf << std::endl;
 		return;
 	}
 

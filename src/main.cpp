@@ -36,19 +36,8 @@ int main(int argc, char** argv) {
 		//copied from keyboard example
 		if (hidKeysDown() & KEY_SELECT)
 		{
-			didit = true;
-			swkbdInit(&swkbd, SWKBD_TYPE_NORMAL, 3, -1);
-			swkbdSetInitialText(&swkbd, mybuf);
-			swkbdSetHintText(&swkbd, "Please enter hex values");
-			swkbdSetButton(&swkbd, SWKBD_BUTTON_LEFT, "Maybe Not", false);
-			swkbdSetButton(&swkbd, SWKBD_BUTTON_MIDDLE, "~Middle~", true);
-			swkbdSetButton(&swkbd, SWKBD_BUTTON_RIGHT, "Do It", true);
-			swkbdSetFeatures(&swkbd, SWKBD_PREDICTIVE_INPUT);
-			static bool reload = false;
-			swkbdSetStatusData(&swkbd, &swkbdStatus, reload, true);
-			swkbdSetLearningData(&swkbd, &swkbdLearning, reload, true);
-			reload = true;
-			button = swkbdInputText(&swkbd, mybuf, sizeof(mybuf));
+			FMS::startTransfer(0, true);
+			std::cout << text << std::endl;
 		}
 
 
