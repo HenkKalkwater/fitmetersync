@@ -9,13 +9,7 @@ int main(int argc, char** argv) {
 	std::string text = "(A) to start as main, (B) as slave, (X) to reflect, (SELECT) for test, (START) to quit.";
 	std::cout << text << std::endl;
 
-	//copied from keyboard example:
-	static SwkbdState swkbd;
-	static char mybuf[60];
-	static SwkbdStatusData swkbdStatus;
-	static SwkbdLearningData swkbdLearning;
-	SwkbdButton button = SWKBD_BUTTON_NONE;
-	bool didit = false;
+	
 	
 	while (aptMainLoop()) {
 		hidScanInput();
