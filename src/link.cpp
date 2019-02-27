@@ -3,20 +3,48 @@
 u8 FMS::curByte = 0;
 u8 FMS::curByte2 = 1;
 
-void FMS::startTransfer(int first = 0) {
+u8 secondShake[8] = { 0xA5, 0x00, 0x84, 0x01, 0x04, 0x04, 0x57, 0xd2 };
+u8 firstShake[8] = { 0xA5, 0x00, 0x84, 0x01, 0x03, 0x04, 0x70, 0x31 };
+
+//copied from keyboard example:
+static SwkbdState swkbd;
+static char mybuf[60];
+static SwkbdStatusData swkbdStatus;
+static SwkbdLearningData swkbdLearning;
+SwkbdButton button = SWKBD_BUTTON_NONE;
+bool didit = false;
+
+void FMS::startTransfer(int first = 0, bool editdata = false) {
     std::cout << ":: Start listening" << std::endl;
     
     const size_t SIZE = 0x1000;
     u8* data;
     data = (u8*) memalign(SIZE, SIZE);
 
-    u8 firstShake[8] = {0xA5, 0x00, 0x84, 0x01, 0x03, 0x04, 0x70, 0x31};
 	int firstshakedone = 0;
-    u8 secondShake[8] = {0xA5, 0x00, 0x84, 0x01, 0x04, 0x04, 0x57, 0xd2};
+    
 	u8 dataSend[8];
 	std::copy(firstShake, firstShake + 8, dataSend);
 	Result ret = iruInit((u32*) data, SIZE);
     printIfError(ret);
+
+	if (editdata == true) {
+		didit = true;
+		swkbdInit(&swkbd, SWKBD_TYPE_NORMAL, 3, -1);
+		swkbdSetInitialText(&swkbd, mybuf);
+		swkbdSetHintText(&swkbd, "Please enter hex values");
+		swkbdSetButton(&swkbd, SWKBD_BUTTON_LEFT, "Cancel", false);
+		swkbdSetButton(&swkbd, SWKBD_BUTTON_RIGHT, "Modify", true);
+		static bool reload = false;
+		swkbdSetStatusData(&swkbd, &swkbdStatus, reload, true);
+		swkbdSetLearningData(&swkbd, &swkbdLearning, reload, false);
+		reload = true;
+		button = swkbdInputText(&swkbd, mybuf, sizeof(mybuf));
+		consoleClear();
+		std::cout << button << std::endl;
+		std::cout << mybuf << std::endl;
+		return;
+	}
 
     std::cout << "   Please turn on the Fit Meter and long press \n   the Fit Meter middle button within 5 seconds." << std::endl;
     // The frequency of the Pokewalker is about 116 279,07 and it looks a lot like a Wii Fit U meter.
