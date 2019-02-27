@@ -7,7 +7,7 @@ int main(int argc, char** argv) {
 	gfxInitDefault();
 	hidInit();
 	consoleInit(GFX_TOP, nullptr);
-	std::cout << "(A) to start as main, (B) as slave, (START) to quit." << std::endl;
+	std::cout << "(A) to start as main, (B) as slave, (X) to reflect, (START) to quit." << std::endl;
 	
 	while (aptMainLoop()) {
 		hidScanInput();
