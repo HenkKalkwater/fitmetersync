@@ -48,6 +48,8 @@ void FMS::startTransfer(int first = 0, bool editdata = false) {
 		button = swkbdInputText(&swkbd, mybuf, sizeof(mybuf));
 		std::cout << button << std::endl;
 		std::cout << mybuf << std::endl;
+		//std::copy(secondShake, secondShake + 8, stringtou8(mybuf).data());
+		stringtou8(mybuf);
 		return;
 	}
 
@@ -172,7 +174,7 @@ void FMS::printBytes(u8* bytes, size_t size, bool sender) {
         std::cout << std::hex << std::setw(2) << std::setfill('0') << (bytes[i] & 0xFF) << " ";
         
         if ((i + 1) % 4 == 0) std::cout << " ";
-        if ((i + 1) % 8 == 0) std::cout << std::endl;
+		std::cout << std::endl;
     }
 }
 std::string FMS::u8tostring(u8* bites, size_t syze) {
@@ -185,6 +187,28 @@ std::string FMS::u8tostring(u8* bites, size_t syze) {
 	}
 	returnstring = buffer.str();
 	return returnstring;
+}
+vector<u8> FMS::stringtou8(std::string hex) {
+	FMS::removespace(hex);
+	std::vector<string> arr(hex.length() / 2);
+	int j = 0;
+	for (int i = 0; i < hex.length(); i++) {
+		arr[i] = hex[j] + hex[j+1];
+		j=j+2;
+	}
+	std::vector<u8> ret(arr.size());
+	for (int i = 0; i < arr.size(); i++) {
+		std::stringstream ss;
+		arr[i] = ("0x" + arr[i]);
+		ret[i] = stoi(arr[i]);
+	}
+	
+	return ret;
+}
+
+std::string FMS::removespace(std::string str) {
+	str.erase(remove(str.begin(), str.end(), ' '), str.end());
+	return str;
 }
 
 Result FMS::getRecvFinishedEvent(Handle* handle) {

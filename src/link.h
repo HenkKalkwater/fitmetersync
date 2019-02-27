@@ -10,6 +10,10 @@
 #include <iomanip>
 #include <string.h>
 #include "crc.h"
+#include <algorithm>
+#include <vector>
+
+using namespace std;
 
 namespace FMS {
     void receiveData();
@@ -17,6 +21,8 @@ namespace FMS {
     void printIfError(Result result);
     void printBytes(u8* bytes, size_t size, bool sender);
 	std::string u8tostring(u8* bytes, size_t size);
+	vector<u8> stringtou8(std::string hex);
+	std::string removespace(std::string str);
     extern u8 curByte;
     extern u8 curByte2;
 	
