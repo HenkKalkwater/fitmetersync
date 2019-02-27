@@ -3,7 +3,7 @@
 u8 FMS::curByte = 0;
 u8 FMS::curByte2 = 1;
 
-void FMS::startTransfer(int first = 0) {
+void FMS::startTransfer(int first = 0, bool editdata = false) {
     std::cout << ":: Start listening" << std::endl;
     
     const size_t SIZE = 0x1000;
@@ -17,6 +17,11 @@ void FMS::startTransfer(int first = 0) {
 	std::copy(firstShake, firstShake + 8, dataSend);
 	Result ret = iruInit((u32*) data, SIZE);
     printIfError(ret);
+
+	if (editdata == true) {
+		//do some hex edit magic
+		return;
+	}
 
     std::cout << "   Please turn on the Fit Meter and long press \n   the Fit Meter middle button within 5 seconds." << std::endl;
     // The frequency of the Pokewalker is about 116 279,07 and it looks a lot like a Wii Fit U meter.
