@@ -47,8 +47,8 @@ so far the fit meter always starts messages with a5 00 84 01 and the gamepad wit
 
 # Thanks to:
 * The creator of the new-hblauncher for the Makefile
-* HenkKalkwater for the original script
-* mrbob312 (a.k.a me) for modifying it
+* HenkKalkwater (creator)
+* mrbob312 for modifying it
 
 # Documentation gathered from
 * [This page on iFixit telling the Wii Fit Meter uses IrDA](https://www.ifixit.com/Answers/View/205720/Fit+Meter+IR+emitter+freq#answer205742). This was the spark that leaded me to write this project.

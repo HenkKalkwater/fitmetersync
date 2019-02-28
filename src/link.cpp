@@ -31,7 +31,7 @@ void FMS::startTransfer(int first = 0, bool editdata = false) {
     printIfError(ret);
 
 	if (editdata == true) {
-		cout << "note: this is a beta feature and will crash, press (X) to continue (Y) to go back";
+		cout << ":: Note: this is a beta feature and will crash. Press (X) to continue and (Y) to go back";
 		while (1) {
 			if (hidKeysDown() & KEY_Y) {
 				return;
@@ -43,7 +43,7 @@ void FMS::startTransfer(int first = 0, bool editdata = false) {
 		consoleClear();
 		std::string temp = FMS::u8tostring(firstShake, 8);
 		const char * c = temp.c_str();
-		std::cout << "original: " << temp << std::endl;
+		std::cout << "   Original: " << temp << std::endl;
 		didit = true;
 		swkbdInit(&swkbd, SWKBD_TYPE_NORMAL, 3, -1);
 		swkbdSetInitialText(&swkbd, mybuf);
@@ -70,6 +70,7 @@ void FMS::startTransfer(int first = 0, bool editdata = false) {
 	}
 
     std::cout << "   Please turn on the Fit Meter and long press \n   the Fit Meter middle button within 5 seconds." << std::endl;
+    
     // The frequency of the Pokewalker is about 116 279,07 and it looks a lot like a Wii Fit U meter.
     // Let's try that frequency, because you have to do something.
     // The closest 
@@ -190,7 +191,7 @@ void FMS::printBytes(u8* bytes, size_t size, bool sender) {
         std::cout << std::hex << std::setw(2) << std::setfill('0') << (bytes[i] & 0xFF) << " ";
         
         if ((i + 1) % 4 == 0) std::cout << " ";
-		std::cout << std::endl;
+		if ((i + 1) % 8 == 0) std::cout << std::endl;
     }
 }
 std::string FMS::u8tostring(u8* bytes, size_t size) {
