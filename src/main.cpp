@@ -6,7 +6,7 @@ int main(int argc, char** argv) {
 	gfxInitDefault();
 	hidInit();
 	consoleInit(GFX_TOP, nullptr);
-	std::string text = "(A) to start as main, (B) as slave, (X) to reflect, (SELECT) for test, (START) to quit.";
+	std::string text = "(A) to start as main, (B) as slave, (X) to reflect, (Y) to record, (START) to quit.";
 	std::cout << text << std::endl;
 
 	
@@ -25,6 +25,10 @@ int main(int argc, char** argv) {
 		}
 		if (hidKeysDown() & KEY_X) {
 			FMS::startTransfer(2, false);
+			std::cout << text << std::endl;
+		}
+		if (hidKeysDown() & KEY_Y) {
+			FMS::startTransfer(3, false);
 			std::cout << text << std::endl;
 		}
 		//copied from keyboard example
