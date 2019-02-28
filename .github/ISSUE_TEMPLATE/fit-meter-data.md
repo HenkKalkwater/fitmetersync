@@ -15,8 +15,8 @@ assignees: HenkKalkwater
     a5 00 84 01  04 04 f2 e6
 
 # Fit Meter color
-*This data probably isn't used in the handshake*
-*color: black*
+*This data probably isn't used in the handshake*  
+color: black
 
 
 
