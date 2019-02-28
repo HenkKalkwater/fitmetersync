@@ -1,5 +1,5 @@
 #include "link.h"
-
+typedef u8 uint8_t;
 #include <sstream>
 
 u8 FMS::curByte = 0;
@@ -31,6 +31,15 @@ void FMS::startTransfer(int first = 0, bool editdata = false) {
     printIfError(ret);
 
 	if (editdata == true) {
+		cout << "note: this is a beta feature and will crash, press (X) to continue (Y) to go back";
+		while (1) {
+			if (hidKeysDown() & KEY_Y) {
+				return;
+			}
+			if (hidKeysDown() & KEY_X) {
+				break;
+			}
+		}
 		consoleClear();
 		std::string temp = FMS::u8tostring(firstShake, 8);
 		const char * c = temp.c_str();
@@ -39,17 +48,24 @@ void FMS::startTransfer(int first = 0, bool editdata = false) {
 		swkbdInit(&swkbd, SWKBD_TYPE_NORMAL, 3, -1);
 		swkbdSetInitialText(&swkbd, mybuf);
 		swkbdSetHintText(&swkbd, c);
+		strcpy(mybuf, temp.c_str());
 		swkbdSetButton(&swkbd, SWKBD_BUTTON_LEFT, "Cancel", false);
+		swkbdSetButton(&swkbd, SWKBD_BUTTON_MIDDLE, "Original", true);
 		swkbdSetButton(&swkbd, SWKBD_BUTTON_RIGHT, "Modify", true);
 		static bool reload = false;
 		swkbdSetStatusData(&swkbd, &swkbdStatus, reload, true);
 		swkbdSetLearningData(&swkbd, &swkbdLearning, reload, false);
 		reload = true;
 		button = swkbdInputText(&swkbd, mybuf, sizeof(mybuf));
+		if (button == 0)
+			return;
+		if (button == 1) {
+			FMS::startTransfer(0, true);
+		}
 		std::cout << button << std::endl;
 		std::cout << mybuf << std::endl;
 		//std::copy(secondShake, secondShake + 8, stringtou8(mybuf).data());
-		stringtou8(mybuf);
+		stringtou8(string(mybuf), std::vector<u8>(secondShake, secondShake + sizeof secondShake / sizeof secondShake[0]));
 		return;
 	}
 
@@ -177,18 +193,18 @@ void FMS::printBytes(u8* bytes, size_t size, bool sender) {
 		std::cout << std::endl;
     }
 }
-std::string FMS::u8tostring(u8* bites, size_t syze) {
+std::string FMS::u8tostring(u8* bytes, size_t size) {
 	std::string returnstring;
 	std::stringstream buffer;
-	for (u32 i = 0; i < syze; i++) {
-		buffer << std::hex << std::setw(2) << std::setfill('0') << (bites[i] & 0xFF) << " ";
+	for (u32 i = 0; i < size; i++) {
+		buffer << std::hex << std::setw(2) << std::setfill('0') << (bytes[i] & 0xFF) << " ";
 
 		if ((i + 1) % 4 == 0) buffer << " ";
 	}
 	returnstring = buffer.str();
 	return returnstring;
 }
-vector<u8> FMS::stringtou8(std::string hex) {
+vector<u8> FMS::stringtou8(std::string hex, vector<u8> vec) {
 	FMS::removespace(hex);
 	std::vector<string> arr(hex.length() / 2);
 	int j = 0;
@@ -196,14 +212,12 @@ vector<u8> FMS::stringtou8(std::string hex) {
 		arr[i] = hex[j] + hex[j+1];
 		j=j+2;
 	}
-	std::vector<u8> ret(arr.size());
+
 	for (int i = 0; i < arr.size(); i++) {
-		std::stringstream ss;
-		arr[i] = ("0x" + arr[i]);
-		ret[i] = stoi(arr[i]);
+		std::istringstream converter(arr[i]);
+		converter >> std::hex >> vec[i];
 	}
-	
-	return ret;
+	return vec;
 }
 
 std::string FMS::removespace(std::string str) {

@@ -6,7 +6,7 @@ int main(int argc, char** argv) {
 	gfxInitDefault();
 	hidInit();
 	consoleInit(GFX_TOP, nullptr);
-	std::string text = "(A) to start as main, (B) as slave, (X) to reflect, (Y) to record (SELECT) for test, (START) to quit.";
+	std::string text = "(A) to start as main, (B) as slave, (X) to reflect, (Y) to record, (START) to quit.";
 	std::cout << text << std::endl;
 
 	
