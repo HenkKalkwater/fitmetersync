@@ -12,7 +12,7 @@ include $(DEVKITARM)/3ds_rules
 
 export VER_MAJOR	:= 0
 export VER_MINOR	:= 0
-export VER_PATCH	:= 3
+export VER_PATCH	:= 4
 
 export VERSTRING	:=	v$(VER_MAJOR).$(VER_MINOR).$(VER_PATCH)
 #---------------------------------------------------------------------------------
@@ -46,9 +46,9 @@ GRAPHICS	:=	gfx
 ROMFS		:=	romfs
 GFXBUILD	:=	$(ROMFS)/gfx
 
-APP_TITLE		:=  	Fit Meter Sync $(VERSTRING) (mod version)
+APP_TITLE		:=  	Fit Meter Sync $(VERSTRING)
 APP_DESCRIPTION		:=	Syncs your steps with the Wii U Fit Meter and coins.
-APP_AUTHOR		:=	Martijn Brouwer
+APP_AUTHOR		:=	mrbob312 &  HenkKalkwater
 
 IP_ADDRESS		:= 192.168.2.9
 
