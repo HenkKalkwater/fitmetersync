@@ -16,7 +16,7 @@ Suggestions about the protocol are welcome, as well as pull requests as long as 
 * Document parts of the protocol
 
 ## v0.1
-* Read the steps from the Fit Meter
+* Emulate a wii fit meter or wii u (so they'll sync data)
 
 ## v0.2
 * Sync the steps from the Fit Meter to the 3DS
@@ -29,6 +29,8 @@ Suggestions about the protocol are welcome, as well as pull requests as long as 
 
 # Thanks to:
 * The creator of the new-hblauncher for the Makefile
+* HenkKalkwater (creator)
+* mrbob312 for modifying it
 
 # Documentation gathered from
 * [This page on iFixit telling the Wii Fit Meter uses IrDA](https://www.ifixit.com/Answers/View/205720/Fit+Meter+IR+emitter+freq#answer205742). This was the spark that leaded me to write this project.
