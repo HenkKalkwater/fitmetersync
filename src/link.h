@@ -3,18 +3,19 @@
 
 #include <cstdint>
 #include <iostream>
+#include <fstream>
 #include <3ds.h>
 #include <stdlib.h>
 #include <time.h>
 #include <malloc.h>
 #include <iomanip>
 #include <string.h>
-#include "crc.h"
 #include <algorithm>
 #include <vector>
 #include <sstream>
 #include <iterator>
 
+#include "crc.h"
 typedef u8 uint8_t;
 
 using namespace std;
@@ -34,6 +35,7 @@ namespace FMS::Link {
     extern u8 curByte2;
 	extern PrintConsole defaultConsole;
 	extern PrintConsole linkConsole;
+	extern std::ofstream outStream;
     
     /**
      * \brief The size of the buffer used to receiving and sending data.

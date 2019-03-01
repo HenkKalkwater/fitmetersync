@@ -5,6 +5,7 @@ namespace FMS::Link {
     Handle recvFinishedEvent = 0;
 	PrintConsole linkConsole;
 	PrintConsole defaultConsole;
+	std::ofstream outStream;
 
     u8 secondShake[8] = { 0xA5, 0x00, 0x84, 0x01, 0x04, 0x04, 0x57, 0xd2 };
     u8 firstShake[8] = { 0xA5, 0x00, 0x84, 0x01, 0x03, 0x04, 0x70, 0x31 };
@@ -115,6 +116,12 @@ namespace FMS::Link {
             std::cout << "-> ";
         } else {
             std::cout << "<- ";
+			// Also print to file
+			outStream << "---" << std::endl;
+			for (size_t i = 0; i < size; i++) {
+				outStream << std::hex << std::setw(2) << std::setfill('0') << " " << (bytes[i] & 0xFF);
+			}
+			outStream << std::endl;
         }
         
         // Print bytes with a valid CRC in green
@@ -175,22 +182,25 @@ namespace FMS::Link {
     }
 
     Result initialise() {
+		consoleInit(GFX_BOTTOM, &linkConsole);
+		consoleInit(GFX_TOP, &defaultConsole);
         buffer = (u8*) memalign(BUFFER_SIZE, BUFFER_SIZE);
         Result ret = 0;
+		outStream.open("fms-" + std::to_string((int) time(nullptr)) + ".txt");
+		if (!outStream.is_open()) std::cout << ":: Failed to open log file" << std::endl;
         if (R_FAILED(ret = iruInit( (u32*) buffer, BUFFER_SIZE))) return ret;
         
         // The frequency of the Pokewalker is about 116 279,07 and it looks a lot like a Wii Fit U meter.
         // Let's try that frequency, because you have to do something.
         IRU_SetBitRate(3);
         if (R_FAILED(ret = getRecvFinishedEvent(&recvFinishedEvent))) return ret;
-		consoleInit(GFX_BOTTOM, &linkConsole);
-		consoleInit(GFX_TOP, &defaultConsole);
         return ret;
     }
     
     void exit() {
         iruExit();
         free(buffer);
+		outStream.close();
     }
 
     Result getRecvFinishedEvent(Handle* handle) {
