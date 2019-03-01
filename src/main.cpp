@@ -1,6 +1,8 @@
 #include <3ds.h>
 #include <iostream>
+
 #include "link.h"
+#include "wiiulink.h"
 
 using namespace FMS;
 
@@ -18,7 +20,11 @@ int main(int argc, char** argv) {
 		if (hidKeysDown() & KEY_START)
 			break;
 		if (hidKeysDown() & KEY_A) {
-			Link::startTransfer(0, false);
+			//Link::startTransfer(0, false);
+			{
+				WiiULink mLink;
+				mLink.test();
+			}
             std::cout << text << std::endl;
         }
 		if (hidKeysDown() & KEY_B) {

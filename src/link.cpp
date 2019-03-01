@@ -119,7 +119,7 @@ namespace FMS::Link {
 			// Also print to file
 			outStream << "---" << std::endl;
 			for (size_t i = 0; i < size; i++) {
-				outStream << std::hex << std::setw(2) << std::setfill('0') << " " << (bytes[i] & 0xFF);
+				outStream << std::hex << std::setw(2) << std::setfill('0') << (bytes[i] & 0xFF) << " ";
 			}
 			outStream << std::endl;
         }
