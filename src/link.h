@@ -32,6 +32,8 @@ namespace FMS::Link {
     
     extern u8 curByte;
     extern u8 curByte2;
+	extern PrintConsole defaultConsole;
+	extern PrintConsole linkConsole;
     
     /**
      * \brief The size of the buffer used to receiving and sending data.

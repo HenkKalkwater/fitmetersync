@@ -3,6 +3,8 @@
 namespace FMS::Link {
     u8* buffer;
     Handle recvFinishedEvent = 0;
+	PrintConsole linkConsole;
+	PrintConsole defaultConsole;
 
     u8 secondShake[8] = { 0xA5, 0x00, 0x84, 0x01, 0x04, 0x04, 0x57, 0xd2 };
     u8 firstShake[8] = { 0xA5, 0x00, 0x84, 0x01, 0x03, 0x04, 0x70, 0x31 };
@@ -66,7 +68,6 @@ namespace FMS::Link {
         std::cout << "   Please turn on the Fit Meter and long press \n   the Fit Meter middle button within 5 seconds." << std::endl;
         
         u32 receivedSize;
-        blockSendData(firstShake, 8);
         while (1) {
             if (first == 0) {
                 if (data[4] == 0x3 || data[4] == 0x4) {
@@ -77,7 +78,7 @@ namespace FMS::Link {
                 }
             }
             
-            printIfError(blockReceiveData(data, &receivedSize, 5000000000));
+            printIfError(blockReceiveData(data, &receivedSize, 15000000000));
             if (receivedSize == 0)  {
                 std::cout << "   No data detected within 5 seconds. " << std::endl;
                 break;
@@ -109,6 +110,7 @@ namespace FMS::Link {
     }
 
     void printBytes(u8* bytes, size_t size, bool sender) {
+		consoleSelect(&linkConsole);
         if (sender) {
             std::cout << "-> ";
         } else {
@@ -127,11 +129,17 @@ namespace FMS::Link {
             
             // Add spacing and newlines.
             if ((i + 1) % 4 == 0) std::cout << " ";
-            if ((i + 1) % 8 == 0) std::cout << std::endl;
+            if ((i + 1) % 8 == 0) {
+				std::cout << std::endl;
+				if ((i + 1) < size) {
+					std::cout << "   ";
+				}
+			}
         }
         std::cout << "\e[0m";
         // Add a newline in case the request wasn't a multiple of 8 bytes.
         if ((size) % 8 != 0) std::cout << std::endl;
+		consoleSelect(&defaultConsole);
     }
     
     std::string u8tostring(u8* bytes, size_t size) {
@@ -175,7 +183,8 @@ namespace FMS::Link {
         // Let's try that frequency, because you have to do something.
         IRU_SetBitRate(3);
         if (R_FAILED(ret = getRecvFinishedEvent(&recvFinishedEvent))) return ret;
-        std::cout << "Initialized" << std::endl;
+		consoleInit(GFX_BOTTOM, &linkConsole);
+		consoleInit(GFX_TOP, &defaultConsole);
         return ret;
     }
     
