@@ -50,7 +50,7 @@ APP_TITLE		:=  	Fit Meter Sync $(VERSTRING)
 APP_DESCRIPTION		:=	Syncs your steps with the Wii U Fit Meter and coins.
 APP_AUTHOR		:=	mrbob312 &  HenkKalkwater
 
-IP_ADDRESS		:= 192.168.2.30
+IP_ADDRESS		:= $(file < ipaddress.txt)
 
 #---------------------------------------------------------------------------------
 # options for code generation
@@ -180,7 +180,12 @@ $(BUILD):
 
 3dslink:	$(OUTPUT).3dsx
 	@echo Linking 3ds
+ifndef IP_ADDRESS
+	@echo No ip address specified in ipaddress.txt
+	@3dslink $(OUTPUT).3dsx
+else
 	@3dslink -a $(IP_ADDRESS) $(OUTPUT).3dsx
+endif
 
 ifneq ($(GFXBUILD),$(BUILD))
 $(GFXBUILD):
