@@ -27,12 +27,18 @@ namespace FMS::Link {
         if (editdata == true) {
             cout << ":: Note: this is a beta feature and will crash. Press (X) to continue and (Y) to go back";
             while (1) {
+				hidScanInput();
                 if (hidKeysDown() & KEY_Y) {
                     return;
                 }
                 if (hidKeysDown() & KEY_X) {
                     break;
                 }
+				//Flush and swap framebuffers
+				gfxFlushBuffers();
+				gfxSwapBuffers();
+				//Wait for VBlank
+				gspWaitForVBlank();
             }
             consoleClear();
             std::string temp = u8tostring(firstShake, 8);
