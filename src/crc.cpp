@@ -11,6 +11,9 @@
 //#define DI  0x07
 
 namespace FMS {
+    
+    bool made_table = false;
+    u8 crc8_table[256];     /* 8-bit table */
 
     // Should be called before any other crc function.  
     void init_crc8() {
