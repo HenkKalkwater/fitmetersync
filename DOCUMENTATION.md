@@ -4,16 +4,21 @@ The Fit Meter seems to send data via IrDA-SIR with a bit rate of 115200 bits per
 # Device IDs
 So far the fit meter always starts messages with `a5 00 84 01` and the gamepad with `a5 70 81` (need o)
 
-# Handshake layout
+# Handshake layout (Wii Fit Meter)
 
 | offset (bytes) | lenght (bytes) | Description                                                                        |
 |----------------|----------------|------------------------------------------------------------------------------------|
-| 0x0            | 0x4            | ID of the device? `a5 00 84 01` for the Fit Meter and `a5 70 71` for the Wii U     |
+| 0x0            | 0x4            | ID of the device? `a5 00 84 01` for the Fit Meter                                  |
 | 0x4            | 0x2            | Action? (See below)                                                                |
 | 0x6            | 0x1            | If the action is `03 04`: goes up by one each time a connection is made.           |
 |                |                | If the action is `04 04`: counts down to `00`.                                     |
 | 0x7            | 0x1            | 8-bit CRC over the previous bytes                                                  |
 
+# Handshake Layout (Wii U)
+| offset (bytes) | lenght (bytes) | Description                                                                        |
+|----------------|----------------|------------------------------------------------------------------------------------|
+| 0x0            | 0x4            | Unknown. Observed to be either `a5 70 81 02` or `a5 70 81 0f`                      |
+| 0x7            | 0x1            | 8-bit CRC over the previous bytes                                                  |
 ## Actions
 * `03 04`: announcing presence?
 * `04 04`: polling devices?

@@ -27,24 +27,6 @@ Suggestions about the protocol are welcome, as well as pull requests as long as 
 ## v2.0
 * Sync the rest of the fricking ~~owl~~ data
 
-# things discovered:
-##conversation between fit meters:
-(03 04) type message
-(03 04) type response
-(04 04) type message
-(04 04) type response
-
-here with actual data:
-03 04 0a 50 3ds
-03 04 64 5d meter
-04 04 f6 bc 3ds
-04 04 fb 9f meter
-
-it seems like 03 04 means it wants to connect and 04 04 contains actual data, so you should always start with a 03 04 message.
-
-##device ID's
-so far the fit meter always starts messages with a5 00 84 01 and the gamepad with a5 70 81
-
 # Thanks to:
 * The creator of the new-hblauncher for the Makefile
 * HenkKalkwater (creator)
