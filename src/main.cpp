@@ -9,7 +9,7 @@ int main(int argc, char** argv) {
 	gfxInitDefault();
 	hidInit();
 	consoleInit(GFX_TOP, nullptr);
-    Link::printIfError(Link::initialise());
+	Link::printIfError(Link::initialise());
 	std::string text = "(A) to start as main, (B) as slave, (X) to reflect, (Y) to record, (START) to quit.";
 	std::cout << text << std::endl;
     
@@ -43,10 +43,10 @@ int main(int argc, char** argv) {
 
 
 		// Flush and swap framebuffers
-        gfxFlushBuffers();
-        gfxSwapBuffers();
-        //Wait for VBlank
-        gspWaitForVBlank();
+		gfxFlushBuffers();
+		gfxSwapBuffers();
+		//Wait for VBlank
+		gspWaitForVBlank();
 	}
 	Link::exit();
 	gfxExit();
