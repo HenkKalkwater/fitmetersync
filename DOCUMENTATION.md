@@ -26,7 +26,7 @@ When wanting to make a connection, the Fit Meter sends the following data with a
 
     01 03 04 xx
 
-where `xx` is the `ConnectionID a device should use when it wants to communicate with the Fit Meter. All the following
+where `xx` is the `ConnectionID` a device should use when it wants to communicate with the Fit Meter. All the following
 communications should use that `ConnectionID`, otherwise the device will not respond.  
 
 Once the Fit Meter sends `01 04 04 xx` (still with a `ConnectionID` of `00`), you are allowed to connect with it (?). 
