@@ -23,7 +23,7 @@ namespace FMS::Link {
     void receiveData();
     void startTransfer(int first, bool editdata);
     void printIfError(Result result);
-    
+	void MITMattack();
     void mimicWiiU();
     
 	std::string u8tostring(u8* bytes, size_t size);

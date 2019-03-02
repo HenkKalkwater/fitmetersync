@@ -14,7 +14,12 @@ namespace FMS::Link {
     static SwkbdLearningData swkbdLearning;
     SwkbdButton button = SWKBD_BUTTON_NONE;
     bool didit = false;
-
+	/*if first = 0 first send data, then receive
+	  if first = 1 first receive data, then send
+	  if first = 2 reflect data
+	  if first = 3 just receive
+	  if editdata = true it will open the keyboard program
+	  */
     void startTransfer(int first = 0, bool editdata = false) {
         std::cout << ":: Start listening" << std::endl;
         
@@ -25,7 +30,7 @@ namespace FMS::Link {
         u8 data[BUFFER_SIZE];
 
         if (editdata == true) {
-            cout << ":: Note: this is a beta feature and will crash. Press (X) to continue and (Y) to go back";
+            cout << ":: Note: this is a beta feature and will crash. Press (X) to continue and (Y) to go back" << endl;
             while (1) {
 				hidScanInput();
                 if (hidKeysDown() & KEY_Y) {
@@ -65,7 +70,7 @@ namespace FMS::Link {
             std::cout << button << std::endl;
             std::cout << mybuf << std::endl;
             //std::copy(secondShake, secondShake + 8, stringtou8(mybuf).data());
-            stringtou8(string(mybuf), std::vector<u8>(secondShake, secondShake + sizeof secondShake / sizeof secondShake[0]));
+            stringtou8(string(mybuf), std::vector<u8>(secondShake, secondShake + sizeof secondShake));
             return;
         }
 
@@ -105,6 +110,76 @@ namespace FMS::Link {
         }
         std::cout << ":: Stopped listening" << std::endl;
     }
+
+	void MITMattack() {
+		//Set buffers and array
+		u8 dataSend[8];
+		u8 data[BUFFER_SIZE];
+		u32 receivedSize;
+		//prevent sending data when there is none
+		bool SendToA = false;
+		
+		while (1) {
+			cout << ":: Point to device A and press (A) to continue, (B) to cancel" << endl;
+			if (SendToA) {
+				std::copy(data, data + 8, dataSend);
+				printIfError(blockSendData(dataSend, 8));
+			}
+			while (1) {
+				hidScanInput();
+				if (hidKeysDown() & KEY_A) {
+					break;
+				}
+				if (hidKeysDown() & KEY_B) {
+					return;
+				}
+				// Flush and swap framebuffers
+				gfxFlushBuffers();
+				gfxSwapBuffers();
+				//Wait for VBlank
+				gspWaitForVBlank();
+				//now that we've received data we have something to send
+				SendToA = true;
+			}
+			while (1) {
+				printIfError(blockReceiveData(data, &receivedSize, 5000000000));
+				if (receivedSize == 0) {
+					std::cout << "   No data detected within 5 seconds. " << std::endl;
+					return;
+				}
+				else
+					break;
+			}
+			cout << ":: Point to device B and press (A) to continue, (B) to cancel" << endl;
+			while (1) {
+				hidScanInput();
+				if (hidKeysDown() & KEY_A) {
+					break;
+				}
+				if (hidKeysDown() & KEY_B) {
+					return;
+				}
+				// Flush and swap framebuffers
+				gfxFlushBuffers();
+				gfxSwapBuffers();
+				//Wait for VBlank
+				gspWaitForVBlank();
+			}
+			std::copy(data, data + 8, dataSend);
+			printIfError(blockSendData(dataSend, 8));
+			while (1) {
+				printIfError(blockReceiveData(data, &receivedSize, 5000000000));
+				if (receivedSize == 0) {
+					std::cout << "   No data detected within 5 seconds. " << std::endl;
+					return;
+				}
+				else
+					break;
+			}
+
+		}
+		std::cout << ":: Start listening" << std::endl;
+	}
 
     void printIfError(Result ret) {
         if (ret != 0) {

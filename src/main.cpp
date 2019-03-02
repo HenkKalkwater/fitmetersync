@@ -36,7 +36,7 @@ int main(int argc, char** argv) {
 		//copied from keyboard example
 		if (hidKeysDown() & KEY_SELECT)
 		{
-			Link::startTransfer(0, true);
+			Link::MITMattack();
 			std::cout << text << std::endl;
 		}
 
