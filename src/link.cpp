@@ -77,7 +77,6 @@ namespace FMS::Link {
         std::cout << "   Please turn on the Fit Meter and long press \n   the Fit Meter middle button within 5 seconds." << std::endl;
         
         u32 receivedSize;
-        blockSendData(firstShake, 8);
         while (1) {
             if (first == 0) {
                 if (data[4] == 0x3 || data[4] == 0x4) {
