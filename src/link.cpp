@@ -2,6 +2,7 @@
 
 namespace FMS::Link {
     u8* buffer;
+	u8 connectionId = 0;
     Handle recvFinishedEvent = 0;
 	PrintConsole linkConsole;
 	PrintConsole defaultConsole;
@@ -65,7 +66,7 @@ namespace FMS::Link {
             stringtou8(string(mybuf), std::vector<u8>(secondShake, secondShake + sizeof secondShake / sizeof secondShake[0]));
             return;
         }
-
+        
         std::cout << "   Please turn on the Fit Meter and long press \n   the Fit Meter middle button within 5 seconds." << std::endl;
         
         u32 receivedSize;
@@ -79,7 +80,7 @@ namespace FMS::Link {
                 }
             }
             
-            printIfError(blockReceiveData(data, &receivedSize, 15000000000));
+            printIfError(blockReceiveData(data, BUFFER_SIZE, &receivedSize, 15000000000));
             if (receivedSize == 0)  {
                 std::cout << "   No data detected within 5 seconds. " << std::endl;
                 break;
@@ -101,14 +102,52 @@ namespace FMS::Link {
         }
         std::cout << ":: Stopped listening" << std::endl;
     }
+    
+    void startTransfer2() {
+			std::array<u8, 1> firstShake = {0x02};
+			std::array<u8, 3> secondShake = {0x00, 0x07, 0xF3};
+			std::array<u8, 6> thirdShake = {0x00, 0x07, 0xF4, 0x85, 0x00, 0x00};
+			std::array<u8, 6> fourthShake = {0x00, 0x0d, 0xF4, 0x01, 0x00, 0x00};
+			std::array<u8, 6> fifthShake = {0x00, 0x0d, 0xF4, 0x02, 0x00, 0x017};
+			//std::array<u8, 8> thirdShake = {0xA5, 0x00, 0x03, 0x01, 0x00, 0xF2, 0x00};
+			std::array<u8, 1> goodbye = {0x0F};
+			
+			const size_t RECEIVE_SIZE = 256;
+			std::array<u8, RECEIVE_SIZE> receiveBuffer;
+			u32 receivedSize = 0;
+			
+			std::cout << ":: Emulating Wii U. Please connect a Fit Meter" << std::endl;
+			Result res = Link::waitForConnection(15000000000);
+			if (R_FAILED(res)) {
+				Link::printIfError(res);
+				Link::resetConnectionId();
+				return;
+			}
+			std::cout << "   Fit meter found!" << std::endl;
+			Link::blockReceivePacket(receiveBuffer, &receivedSize, 10000000000);
+			Link::blockSendPacket(firstShake, true);
+			Link::blockReceivePacket(receiveBuffer, &receivedSize, 100000000);
+			Link::blockSendPacket(secondShake, false);
+			Link::blockReceivePacket(receiveBuffer, &receivedSize, 100000000);
+			Link::blockSendPacket(thirdShake, false);
+			Link::blockReceivePacket(receiveBuffer, &receivedSize, 100000000);
+			Link::blockSendPacket(fourthShake, false);
+			Link::blockReceivePacket(receiveBuffer, &receivedSize, 100000000);
+			Link::blockSendPacket(fifthShake, false);
+			Link::blockReceivePacket(receiveBuffer, &receivedSize, 100000000);
+			
+			
+			Link::blockSendPacket(goodbye, true);
+			Link::resetConnectionId();
+		}
 
-    void printIfError(Result ret) {
-        if (ret != 0) {
-            std::cout << "   Result " << std::hex << ret << ": " << std::dec << osStrError(ret) << std::endl;
-            u32 level = R_LEVEL(ret);
-            std::cout << "   Lvl: " << level << "; Smry: " << R_SUMMARY(ret) << "; Mdl: " << R_MODULE(ret) << "; Desc: " << R_DESCRIPTION(ret) << std::endl;
-        }
-    }
+	void printIfError(Result ret) {
+		if (ret != 0) {
+			std::cout << "   Result " << std::hex << ret << ": " << std::dec << osStrError(ret) << std::endl;
+			u32 level = R_LEVEL(ret);
+			std::cout << "   Lvl: " << level << "; Smry: " << R_SUMMARY(ret) << "; Mdl: " << R_MODULE(ret) << "; Desc: " << R_DESCRIPTION(ret) << std::endl;
+		}
+	}
 
     void printBytes(u8* bytes, size_t size, bool sender) {
 		consoleSelect(&linkConsole);
@@ -219,7 +258,7 @@ namespace FMS::Link {
     }
     
     
-    Result blockReceiveData(u8* data, u32* length, u64 timeout) {
+    Result blockReceiveData(u8* data, size_t size, u32* length, u64 timeout) {
         Result ret = 0;
         if (R_FAILED(ret = IRU_StartRecvTransfer(BUFFER_SIZE, 0))) { 
             std::cout << "StartRecvTransfer failed." << std::endl;
@@ -233,23 +272,134 @@ namespace FMS::Link {
         if (*length == 0) {
             return ret;
         }
-        //std::copy(buffer.begin(), buffer.begin() + *length, data);
-        for (size_t i = 0; i < *length; i++) {
-            data[i] = buffer[i];
-        }
+        std::copy(buffer, buffer + std::min((size_t) *length, size), data);
+        //for (size_t i = 0; i < *length; i++) {
+            //data[i] = buffer[i];
+        //}
         
         printBytes(data, (size_t) *length, false);
         
         return ret;
     }
     
-    Result blockSendData(u8* data, u32 length) {
-        data[length - 1] = crc8_arr(data, length - 1);
-        Result ret = 0;
-        if (R_FAILED(ret = IRU_StartSendTransfer(buffer, length))) return ret;
-        IRU_WaitSendTransfer();
-        
-        printBytes(data, length, true);
-        return ret;
-    }
+    Result blockReceivePacket(u8* data, size_t size, u32* length, u64 timeout) {
+		u8 received[size];
+		u32 receivedSize = 0;
+		blockReceiveData(received, size, &receivedSize, timeout);
+		
+		u8 packetSize = 0;
+		
+		if (receivedSize < 4) {
+			// We need at least 4 bytes: Magic number, ConnectionID, Flags/size and a CRC-8.
+			*length = 0;
+			// Return error if no data was received.
+			return MAKERESULT(RL_STATUS, RS_NOP, RM_LINK, RD_NO_DATA);
+		}
+		
+		if (received[0] != MAGIC) {
+			return MAKERESULT(RL_STATUS, RS_NOP, RM_LINK, RD_NOT_FOUND);
+		}
+		
+		if (received[1] != connectionId) {
+			return MAKERESULT(RL_STATUS, RS_NOP, RM_LINK, RD_NOT_FOUND);
+		}
+		
+		if (crc8_arr(received, receivedSize - 1) != received[receivedSize - 1]) {
+			return MAKERESULT(RL_STATUS, RS_NOP, RM_LINK, RD_NOT_FOUND);
+		}
+		
+		if ((received[2] & 0x80) == 0x80) {
+			// The other client would like to close the connection.
+			connectionId = 0;
+		}
+		
+		if ((received[2] & 0x40) == 0x40) {
+			// Use the extended size format
+			packetSize = received[3];
+			memcpy(data, received + 4, packetSize);
+		} else {
+			// Standard size.
+			packetSize = received[2] & 0b00111111;
+			memcpy(data, received + 3, packetSize);
+		}
+		
+		return 0;
+	}
+    
+    Result waitForConnection(u64 timeout) {
+		Result ret = 0;
+		if (connectionId != 0) {
+			// Error if there is already an ongoing connection.
+			return MAKERESULT(RL_STATUS, RS_INVALIDSTATE, RM_LINK, RD_ALREADY_EXISTS);
+		}
+		u8 received[8];
+		u32 receivedSize = 0;
+		if (R_FAILED(ret = blockReceiveData(received, 8, &receivedSize, timeout))) return ret;
+		
+		if (receivedSize == 0) {
+			return MAKERESULT(RL_STATUS, RS_NOP, RM_LINK, RD_NO_DATA);
+		}
+		
+		if (receivedSize != 8) {
+			return MAKERESULT(RL_STATUS, RS_NOP, RM_LINK, RD_NOT_FOUND);
+		}
+		
+		if (received[0] != MAGIC && received[1] != 00) {
+			// This probably wasn't meant for us.
+			return MAKERESULT(RL_STATUS, RS_NOP, RM_LINK, RD_NOT_FOUND);
+		}
+		
+		if (crc8_arr(received, 7) != received[7]) {
+			// Checksum doesn't match. Probably an invalid packet.
+			return MAKERESULT(RL_STATUS, RS_NOP, RM_LINK, RD_NOT_FOUND);
+		}
+		
+		if (received[3] != 0x01 || received[4] != 0x03 || received[5] != 0x04) {
+			// There is no intention to start a connection.
+			return MAKERESULT(RL_STATUS, RS_NOP, RM_LINK, RD_NO_DATA);
+		}
+		
+		connectionId = received[6];
+		return ret;
+	}
+    
+	Result blockSendData(u8* data, u32 length) {
+		data[length - 1] = crc8_arr(data, length - 1);
+		Result ret = 0;
+		if (R_FAILED(ret = IRU_StartSendTransfer(buffer, length))) return ret;
+		IRU_WaitSendTransfer();
+		
+		printBytes(data, length, true);
+	    return ret;
+	}
+    
+    Result blockSendPacket(u8* data, u32 length, bool close) {
+		u8* packet;
+		u32 packetSize;
+		if (length > 0b00111111) {
+			// We are using the large packet format.
+			packetSize = length + 5;
+			packet = new u8[packetSize];
+			packet[2] = 0x40;
+			packet[3] = length;
+			memcpy(packet + 4, data, length);
+		} else {
+			packetSize = length + 4;
+			packet = new u8[packetSize];
+			packet[2] = length;
+			memcpy(packet + 3, data, length);
+		}
+		packet[0] = MAGIC;
+		packet[1] = connectionId;
+		if (close) packet[2] |= 0x80;
+		packet[packetSize - 1] = crc8_arr(packet, packetSize - 1);
+		
+		Result res = blockSendData(packet, packetSize);
+		delete[] packet;
+		return res;
+	}
+	
+	void resetConnectionId() {
+		connectionId = 0;
+	}
 }

@@ -20,11 +20,7 @@ int main(int argc, char** argv) {
 		if (hidKeysDown() & KEY_START)
 			break;
 		if (hidKeysDown() & KEY_A) {
-			//Link::startTransfer(0, false);
-			{
-				WiiULink mLink;
-				mLink.test();
-			}
+			Link::startTransfer2();
             std::cout << text << std::endl;
         }
 		if (hidKeysDown() & KEY_B) {
