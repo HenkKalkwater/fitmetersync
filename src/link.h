@@ -88,9 +88,10 @@ namespace FMS::Link {
      * has been sent.
      * \param[in] data A pointer to the array which should be sent.
      * \param[in] length The length of the data + 1 (for the checksum).
+	 * \param[in] if it should recalculate the last bit.
      * \result Result describing wether this call was succesful.
      */
-    Result blockSendData(u8* data, u32 length);
+    Result blockSendData(u8* data, u32 length, bool calcCRC8);
 }
 
 #endif //LINK_H

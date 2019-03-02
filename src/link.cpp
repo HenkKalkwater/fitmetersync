@@ -82,7 +82,7 @@ namespace FMS::Link {
                 if (data[4] == 0x3 || data[4] == 0x4) {
                     if (firstshakedone == 1)
                         std::copy(secondShake, secondShake + 8, dataSend);
-                    printIfError(blockSendData(dataSend, 8));
+                    printIfError(blockSendData(dataSend, 8, true));
                     firstshakedone++;
                 }
             }
@@ -92,38 +92,27 @@ namespace FMS::Link {
                 std::cout << "   No data detected within 5 seconds. " << std::endl;
                 break;
             }
-            
-            if (first == 1) {
-                if (data[4] == 0x3 || data[4] == 0x4) {
-                    // Skip 4, because it makes the meter think the connection failed.
-                    if (firstshakedone == 1)
-                        std::copy(secondShake, secondShake + 8, dataSend);
-                    blockSendData(dataSend, 8);
-                    firstshakedone++;
-                }
-            }
             if (first == 2) {
                 std::copy(data, data + 8, dataSend);
-                printIfError(blockSendData(dataSend, receivedSize));
+                printIfError(blockSendData(dataSend, receivedSize, true));
             }
         }
         std::cout << ":: Stopped listening" << std::endl;
     }
-
-	void MITMattack() {
+	/*
+	void MimicWiiU() {
 		//Set buffers and array
 		u8 dataSend[8];
 		u8 data[BUFFER_SIZE];
 		u32 receivedSize;
-		//prevent sending data when there is none
-		bool SendToA = false;
-		
+
+		u8 messages[8][2] = {
+		{ 0xa5, 0xa5, 0x81, 0x02, 0x94 },
+		{ 0xa5, 0xa5, 0x00, 0x00, 0x00}
+		};
+
 		while (1) {
-			cout << ":: Point to device A and press (A) to continue, (B) to cancel" << endl;
-			if (SendToA) {
-				std::copy(data, data + 8, dataSend);
-				printIfError(blockSendData(dataSend, 8));
-			}
+			cout << ":: Point to meter and press (A) to continue, (B) to cancel" << endl;
 			while (1) {
 				hidScanInput();
 				if (hidKeysDown() & KEY_A) {
@@ -137,8 +126,44 @@ namespace FMS::Link {
 				gfxSwapBuffers();
 				//Wait for VBlank
 				gspWaitForVBlank();
-				//now that we've received data we have something to send
-				SendToA = true;
+			}
+
+
+			if (firstshakedone == 1)
+				std::copy(secondShake, secondShake + 8, dataSend);
+			blockSendData(dataSend, 8);
+			firstshakedone++;
+		}
+	}
+	*/
+	void MITMattack() {
+		//Set buffers and array
+		u8 dataSend[8];
+		u8 WiiUShake[5];
+		u8 data[BUFFER_SIZE];
+		u32 receivedSize;
+		//prevent sending data when there is none
+		bool SendToA = false;
+		
+		while (1) {
+			cout << ":: Point to device A and press (A) to continue, (B) to cancel" << endl;
+			while (1) {
+				hidScanInput();
+				if (hidKeysDown() & KEY_A) {
+					break;
+				}
+				if (hidKeysDown() & KEY_B) {
+					return;
+				}
+				// Flush and swap framebuffers
+				gfxFlushBuffers();
+				gfxSwapBuffers();
+				//Wait for VBlank
+				gspWaitForVBlank();
+			}
+			if (SendToA) {
+				std::copy(data, data + 5, WiiUShake);
+				printIfError(blockSendData(WiiUShake, 5, false));
 			}
 			while (1) {
 				printIfError(blockReceiveData(data, &receivedSize, 5000000000));
@@ -165,15 +190,18 @@ namespace FMS::Link {
 				gspWaitForVBlank();
 			}
 			std::copy(data, data + 8, dataSend);
-			printIfError(blockSendData(dataSend, 8));
+			printIfError(blockSendData(dataSend, 8, true));
 			while (1) {
 				printIfError(blockReceiveData(data, &receivedSize, 5000000000));
 				if (receivedSize == 0) {
 					std::cout << "   No data detected within 5 seconds. " << std::endl;
 					return;
 				}
-				else
+				else {
+					//now that we've received data we have something to send
+					SendToA = true;
 					break;
+				}
 			}
 
 		}
@@ -304,8 +332,10 @@ namespace FMS::Link {
         return ret;
     }
     
-    Result blockSendData(u8* data, u32 length) {
-        data[length - 1] = crc8_arr(data, length - 1);
+    Result blockSendData(u8* data, u32 length, bool calcCRC8 = true) {
+		if (calcCRC8) {
+			data[length - 1] = crc8_arr(data, length - 1);
+		}
         Result ret = 0;
         if (R_FAILED(ret = IRU_StartSendTransfer(buffer, length))) return ret;
         IRU_WaitSendTransfer();
