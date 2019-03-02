@@ -156,11 +156,11 @@ namespace FMS::Link {
         } else {
             std::cout << "<- ";
 			// Also print to file
-			outStream << "---" << std::endl;
-			for (size_t i = 0; i < size; i++) {
-				outStream << std::hex << std::setw(2) << std::setfill('0') << (bytes[i] & 0xFF) << " ";
-			}
-			outStream << std::endl;
+			//outStream << "---" << std::endl;
+			//for (size_t i = 0; i < size; i++) {
+				//outStream << std::hex << std::setw(2) << std::setfill('0') << (bytes[i] & 0xFF) << " ";
+			//}
+			//outStream << std::endl;
         }
         
         // Print bytes with a valid CRC in green
@@ -175,7 +175,7 @@ namespace FMS::Link {
             
             // Add spacing and newlines.
             if ((i + 1) % 4 == 0) std::cout << " ";
-            if ((i + 1) % 8 == 0) {
+            if ((i + 1) % 12 == 0) {
 				std::cout << std::endl;
 				if ((i + 1) < size) {
 					std::cout << "   ";
@@ -184,7 +184,7 @@ namespace FMS::Link {
         }
         std::cout << "\e[0m";
         // Add a newline in case the request wasn't a multiple of 8 bytes.
-        if ((size) % 8 != 0) std::cout << std::endl;
+        if ((size) % 12 != 0) std::cout << std::endl;
 		consoleSelect(&defaultConsole);
     }
     

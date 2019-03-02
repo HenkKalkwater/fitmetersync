@@ -2,7 +2,6 @@
 #include <iostream>
 
 #include "link.h"
-#include "wiiulink.h"
 
 using namespace FMS;
 
