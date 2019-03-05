@@ -1,107 +1,107 @@
 #include "link.h"
 
 namespace FMS::Link {
-    u8* buffer;
+	u8* buffer;
 	u8 connectionId = 0;
-    Handle recvFinishedEvent = 0;
+	Handle recvFinishedEvent = 0;
 	PrintConsole linkConsole;
 	PrintConsole defaultConsole;
 	std::ofstream outStream;
 
-    u8 secondShake[8] = { 0xA5, 0x00, 0x84, 0x01, 0x04, 0x04, 0x57, 0xd2 };
-    u8 firstShake[8] = { 0xA5, 0x00, 0x84, 0x01, 0x03, 0x04, 0x70, 0x31 };
+	u8 secondShake[8] = { 0xA5, 0x00, 0x84, 0x01, 0x04, 0x04, 0x57, 0xd2 };
+	u8 firstShake[8] = { 0xA5, 0x00, 0x84, 0x01, 0x03, 0x04, 0x70, 0x31 };
 
-    //copied from keyboard example:
-    static SwkbdState swkbd;
-    static char mybuf[60];
-    static SwkbdStatusData swkbdStatus;
-    static SwkbdLearningData swkbdLearning;
-    SwkbdButton button = SWKBD_BUTTON_NONE;
-    bool didit = false;
+	//copied from keyboard example:
+	static SwkbdState swkbd;
+	static char mybuf[60];
+	static SwkbdStatusData swkbdStatus;
+	static SwkbdLearningData swkbdLearning;
+	SwkbdButton button = SWKBD_BUTTON_NONE;
+	bool didit = false;
 
-    void startTransfer(int first = 0, bool editdata = false) {
-        std::cout << ":: Start listening" << std::endl;
-        
-        int firstshakedone = 0;
-        
-        u8 dataSend[8];
-        std::copy(firstShake, firstShake + 8, dataSend);
-        u8 data[BUFFER_SIZE];
+	void startTransfer(int first = 0, bool editdata = false) {
+		std::cout << ":: Start listening" << std::endl;
 
-        if (editdata == true) {
-            cout << ":: Note: this is a beta feature and will crash. Press (X) to continue and (Y) to go back";
-            while (1) {
-                if (hidKeysDown() & KEY_Y) {
-                    return;
-                }
-                if (hidKeysDown() & KEY_X) {
-                    break;
-                }
-            }
-            consoleClear();
-            std::string temp = u8tostring(firstShake, 8);
-            const char * c = temp.c_str();
-            std::cout << "   Original: " << temp << std::endl;
-            didit = true;
-            swkbdInit(&swkbd, SWKBD_TYPE_NORMAL, 3, -1);
-            swkbdSetInitialText(&swkbd, mybuf);
-            swkbdSetHintText(&swkbd, c);
-            strcpy(mybuf, temp.c_str());
-            swkbdSetButton(&swkbd, SWKBD_BUTTON_LEFT, "Cancel", false);
-            swkbdSetButton(&swkbd, SWKBD_BUTTON_MIDDLE, "Original", true);
-            swkbdSetButton(&swkbd, SWKBD_BUTTON_RIGHT, "Modify", true);
-            static bool reload = false;
-            swkbdSetStatusData(&swkbd, &swkbdStatus, reload, true);
-            swkbdSetLearningData(&swkbd, &swkbdLearning, reload, false);
-            reload = true;
-            button = swkbdInputText(&swkbd, mybuf, sizeof(mybuf));
-            if (button == 0)
-                return;
-            if (button == 1) {
-                startTransfer(0, true);
-            }
-            std::cout << button << std::endl;
-            std::cout << mybuf << std::endl;
-            //std::copy(secondShake, secondShake + 8, stringtou8(mybuf).data());
-            stringtou8(string(mybuf), std::vector<u8>(secondShake, secondShake + sizeof secondShake / sizeof secondShake[0]));
-            return;
-        }
-        
-        std::cout << "   Please turn on the Fit Meter and long press \n   the Fit Meter middle button within 5 seconds." << std::endl;
-        
-        u32 receivedSize;
-        while (1) {
-            if (first == 0) {
-                if (data[4] == 0x3 || data[4] == 0x4) {
-                    if (firstshakedone == 1)
-                        std::copy(secondShake, secondShake + 8, dataSend);
-                    printIfError(blockSendData(dataSend, 8));
-                    firstshakedone++;
-                }
-            }
-            
-            printIfError(blockReceiveData(data, BUFFER_SIZE, &receivedSize, 15000000000));
-            if (receivedSize == 0)  {
-                std::cout << "   No data detected within 5 seconds. " << std::endl;
-                break;
-            }
-            
-            if (first == 1) {
-                if (data[4] == 0x3 || data[4] == 0x4) {
-                    // Skip 4, because it makes the meter think the connection failed.
-                    if (firstshakedone == 1)
-                        std::copy(secondShake, secondShake + 8, dataSend);
-                    blockSendData(dataSend, 8);
-                    firstshakedone++;
-                }
-            }
-            if (first == 2) {
-                std::copy(data, data + 8, dataSend);
-                printIfError(blockSendData(dataSend, receivedSize));
-            }
-        }
-        std::cout << ":: Stopped listening" << std::endl;
-    }
+		int firstshakedone = 0;
+
+		u8 dataSend[8];
+		std::copy(firstShake, firstShake + 8, dataSend);
+		u8 data[BUFFER_SIZE];
+
+		if (editdata == true) {
+			cout << ":: Note: this is a beta feature and will crash. Press (X) to continue and (Y) to go back";
+			while (1) {
+				if (hidKeysDown() & KEY_Y) {
+					return;
+				}
+				if (hidKeysDown() & KEY_X) {
+					break;
+				}
+			}
+			consoleClear();
+			std::string temp = u8tostring(firstShake, 8);
+			const char * c = temp.c_str();
+			std::cout << "   Original: " << temp << std::endl;
+			didit = true;
+			swkbdInit(&swkbd, SWKBD_TYPE_NORMAL, 3, -1);
+			swkbdSetInitialText(&swkbd, mybuf);
+			swkbdSetHintText(&swkbd, c);
+			strcpy(mybuf, temp.c_str());
+			swkbdSetButton(&swkbd, SWKBD_BUTTON_LEFT, "Cancel", false);
+			swkbdSetButton(&swkbd, SWKBD_BUTTON_MIDDLE, "Original", true);
+			swkbdSetButton(&swkbd, SWKBD_BUTTON_RIGHT, "Modify", true);
+			static bool reload = false;
+			swkbdSetStatusData(&swkbd, &swkbdStatus, reload, true);
+			swkbdSetLearningData(&swkbd, &swkbdLearning, reload, false);
+			reload = true;
+			button = swkbdInputText(&swkbd, mybuf, sizeof(mybuf));
+			if (button == 0)
+				    return;
+			if (button == 1) {
+			    startTransfer(0, true);
+			}
+			std::cout << button << std::endl;
+			std::cout << mybuf << std::endl;
+			//std::copy(secondShake, secondShake + 8, stringtou8(mybuf).data());
+			stringtou8(string(mybuf), std::vector<u8>(secondShake, secondShake + sizeof secondShake / sizeof secondShake[0]));
+			return;
+		}
+
+		std::cout << "   Please turn on the Fit Meter and long press \n   the Fit Meter middle button within 5 seconds." << std::endl;
+
+		u32 receivedSize;
+		while (1) {
+			if (first == 0) {
+				if (data[4] == 0x3 || data[4] == 0x4) {
+					if (firstshakedone == 1)
+						std::copy(secondShake, secondShake + 8, dataSend);
+					printIfError(blockSendData(dataSend, 8));
+					firstshakedone++;
+				}
+			}
+
+			printIfError(blockReceiveData(data, BUFFER_SIZE, &receivedSize, 15000000000));
+			if (receivedSize == 0)  {
+				std::cout << "   No data detected within 5 seconds. " << std::endl;
+				break;
+			}
+
+			if (first == 1) {
+				if (data[4] == 0x3 || data[4] == 0x4) {
+					// Skip 4, because it makes the meter think the connection failed.
+					if (firstshakedone == 1)
+						std::copy(secondShake, secondShake + 8, dataSend);
+					blockSendData(dataSend, 8);
+					firstshakedone++;
+				}
+			}
+			if (first == 2) {
+				std::copy(data, data + 8, dataSend);
+				printIfError(blockSendData(dataSend, receivedSize));
+			}
+		}
+		std::cout << ":: Stopped listening" << std::endl;
+	}
     
     void startTransfer2() {
 			std::array<u8, 1> firstShake = {0x02};
@@ -156,11 +156,11 @@ namespace FMS::Link {
         } else {
             std::cout << "<- ";
 			// Also print to file
-			outStream << "---" << std::endl;
-			for (size_t i = 0; i < size; i++) {
-				outStream << std::hex << std::setw(2) << std::setfill('0') << (bytes[i] & 0xFF) << " ";
-			}
-			outStream << std::endl;
+			//outStream << "---" << std::endl;
+			//for (size_t i = 0; i < size; i++) {
+				//outStream << std::hex << std::setw(2) << std::setfill('0') << (bytes[i] & 0xFF) << " ";
+			//}
+			//outStream << std::endl;
         }
         
         // Print bytes with a valid CRC in green
@@ -175,7 +175,7 @@ namespace FMS::Link {
             
             // Add spacing and newlines.
             if ((i + 1) % 4 == 0) std::cout << " ";
-            if ((i + 1) % 8 == 0) {
+            if ((i + 1) % 12 == 0) {
 				std::cout << std::endl;
 				if ((i + 1) < size) {
 					std::cout << "   ";
@@ -184,7 +184,7 @@ namespace FMS::Link {
         }
         std::cout << "\e[0m";
         // Add a newline in case the request wasn't a multiple of 8 bytes.
-        if ((size) % 8 != 0) std::cout << std::endl;
+        if ((size) % 12 != 0) std::cout << std::endl;
 		consoleSelect(&defaultConsole);
     }
     
@@ -258,29 +258,26 @@ namespace FMS::Link {
     }
     
     
-    Result blockReceiveData(u8* data, size_t size, u32* length, u64 timeout) {
-        Result ret = 0;
-        if (R_FAILED(ret = IRU_StartRecvTransfer(BUFFER_SIZE, 0))) { 
-            std::cout << "StartRecvTransfer failed." << std::endl;
-            IRU_WaitRecvTransfer(length);
-            return ret;
-        }
+	Result blockReceiveData(u8* data, size_t size, u32* length, u64 timeout) {
+		Result ret = 0;
+		if (R_FAILED(ret = IRU_StartRecvTransfer(BUFFER_SIZE, 0))) { 
+			std::cout << "StartRecvTransfer failed." << std::endl;
+			IRU_WaitRecvTransfer(length);
+			return ret;
+		}
+
+		svcWaitSynchronization(recvFinishedEvent, timeout);
+		if (R_FAILED(ret = svcClearEvent(recvFinishedEvent))) return ret;
+		if (R_FAILED(ret = IRU_WaitRecvTransfer(length))) return ret;
+		if (*length == 0) {
+		    return ret;
+		}
+		std::copy(buffer, buffer + std::min((size_t) *length, size), data);
         
-        svcWaitSynchronization(recvFinishedEvent, timeout);
-        if (R_FAILED(ret = svcClearEvent(recvFinishedEvent))) return ret;
-        if (R_FAILED(ret = IRU_WaitRecvTransfer(length))) return ret;
-        if (*length == 0) {
-            return ret;
-        }
-        std::copy(buffer, buffer + std::min((size_t) *length, size), data);
-        //for (size_t i = 0; i < *length; i++) {
-            //data[i] = buffer[i];
-        //}
-        
-        printBytes(data, (size_t) *length, false);
-        
-        return ret;
-    }
+		printBytes(data, (size_t) *length, false);
+
+		return ret;
+	}
     
     Result blockReceivePacket(u8* data, size_t size, u32* length, u64 timeout) {
 		u8 received[size];
