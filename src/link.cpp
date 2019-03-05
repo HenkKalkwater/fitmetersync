@@ -111,6 +111,7 @@ namespace FMS::Link {
 			std::array<u8, 6> fifthShake = {0x00, 0x0d, 0xF4, 0x02, 0x00, 0x017};
 			//std::array<u8, 8> thirdShake = {0xA5, 0x00, 0x03, 0x01, 0x00, 0xF2, 0x00};
 			std::array<u8, 1> goodbye = {0x0F};
+			const u32 TIMEOUT = 100000000;
 			
 			const size_t RECEIVE_SIZE = 256;
 			std::array<u8, RECEIVE_SIZE> receiveBuffer;
@@ -124,20 +125,30 @@ namespace FMS::Link {
 				return;
 			}
 			std::cout << "   Fit meter found!" << std::endl;
-			Link::blockReceivePacket(receiveBuffer, &receivedSize, 10000000000);
-			Link::blockSendPacket(firstShake, true);
-			Link::blockReceivePacket(receiveBuffer, &receivedSize, 100000000);
-			Link::blockSendPacket(secondShake, false);
-			Link::blockReceivePacket(receiveBuffer, &receivedSize, 100000000);
-			Link::blockSendPacket(thirdShake, false);
-			Link::blockReceivePacket(receiveBuffer, &receivedSize, 100000000);
-			Link::blockSendPacket(fourthShake, false);
-			Link::blockReceivePacket(receiveBuffer, &receivedSize, 100000000);
-			Link::blockSendPacket(fifthShake, false);
-			Link::blockReceivePacket(receiveBuffer, &receivedSize, 100000000);
+			printIfError(Link::blockReceivePacket(receiveBuffer, &receivedSize, 10000000000));
+			bool isMakingWrongConnections = true;
+			while (isMakingWrongConnections) {
+				//printIfError(Link::blockReceivePacket(receiveBuffer, &receivedSize, TIMEOUT));
+				if (R_FAILED(Link::blockReceivePacket(receiveBuffer, &receivedSize, TIMEOUT * 5))) {
+					std::cout << "Stopping receiving nasty packets. " << std::endl;
+					isMakingWrongConnections = false;
+				}
+			}
+			printIfError(Link::blockSendPacket(firstShake, true));
+			printIfError(Link::blockReceivePacket(receiveBuffer, &receivedSize, TIMEOUT));
+			printIfError(Link::blockSendPacket(secondShake, false));
+			printIfError(Link::blockReceivePacket(receiveBuffer, &receivedSize, TIMEOUT));
+			printIfError(Link::blockSendPacket(thirdShake, false));
+			printIfError(Link::blockReceivePacket(receiveBuffer, &receivedSize, TIMEOUT));
+			printIfError(Link::blockSendPacket(fourthShake, false));
+			printIfError(Link::blockReceivePacket(receiveBuffer, &receivedSize, TIMEOUT));
+			printIfError(Link::blockSendPacket(fifthShake, false));
+			printIfError(Link::blockReceivePacket(receiveBuffer, &receivedSize, TIMEOUT));
+			printIfError(Link::blockSendPacket(secondShake, false));
+			printIfError(Link::blockReceivePacket(receiveBuffer, &receivedSize, TIMEOUT));
 			
 			
-			Link::blockSendPacket(goodbye, true);
+			printIfError(Link::blockSendPacket(goodbye, true));
 			Link::resetConnectionId();
 		}
 
@@ -152,9 +163,9 @@ namespace FMS::Link {
     void printBytes(u8* bytes, size_t size, bool sender) {
 		consoleSelect(&linkConsole);
         if (sender) {
-            std::cout << "-> ";
+            std::cout << "->";
         } else {
-            std::cout << "<- ";
+            std::cout << "<-";
 			// Also print to file
 			//outStream << "---" << std::endl;
 			//for (size_t i = 0; i < size; i++) {
@@ -174,11 +185,11 @@ namespace FMS::Link {
             std::cout << std::hex << std::setw(2) << std::setfill('0') << (bytes[i] & 0xFF) << " ";
             
             // Add spacing and newlines.
-            if ((i + 1) % 4 == 0) std::cout << " ";
+            if ((i + 1) % 4 == 0 && (i + 1) % 12 != 0) std::cout << " ";
             if ((i + 1) % 12 == 0) {
-				std::cout << std::endl;
+				std::cout << std::endl << "\e[1A";
 				if ((i + 1) < size) {
-					std::cout << "   ";
+					std::cout << "  ";
 				}
 			}
         }
@@ -294,14 +305,17 @@ namespace FMS::Link {
 		}
 		
 		if (received[0] != MAGIC) {
+			std::cout << "   Incorrect magic" << std::endl;
 			return MAKERESULT(RL_STATUS, RS_NOP, RM_LINK, RD_NOT_FOUND);
 		}
 		
 		if (received[1] != connectionId) {
+			std::cout << "   Incorrect connectionId" << std::endl;
 			return MAKERESULT(RL_STATUS, RS_NOP, RM_LINK, RD_NOT_FOUND);
 		}
 		
 		if (crc8_arr(received, receivedSize - 1) != received[receivedSize - 1]) {
+			std::cout << "   ReceiveSize is incorrect." << std::endl;
 			return MAKERESULT(RL_STATUS, RS_NOP, RM_LINK, RD_NOT_FOUND);
 		}
 		
