@@ -14,6 +14,8 @@ Suggestions about the protocol are welcome, as well as pull requests as long as 
 
 ## Before v0.1 <-- We are here
 * Document parts of the protocol
+    * Current roadblocK: I can't sniff IR data and resend them. The timing seems to be important and it is kinda hard with 1 IrDA receiver.
+        * I've ordered two IrDA USB dongles, once I get them, I'll resume working on this project.
 
 ## v0.1
 * Emulate a wii fit meter or wii u (so they'll sync data)
