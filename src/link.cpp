@@ -7,6 +7,7 @@ namespace FMS::Link {
 	PrintConsole linkConsole;
 	PrintConsole defaultConsole;
 	std::ofstream outStream;
+    Pcap* pcap;
 
 	u8 secondShake[8] = { 0xA5, 0x00, 0x84, 0x01, 0x04, 0x04, 0x57, 0xd2 };
 	u8 firstShake[8] = { 0xA5, 0x00, 0x84, 0x01, 0x03, 0x04, 0x70, 0x31 };
@@ -161,6 +162,11 @@ namespace FMS::Link {
 				//outStream << std::hex << std::setw(2) << std::setfill('0') << (bytes[i] & 0xFF) << " ";
 			//}
 			//outStream << std::endl;
+            if (pcap->isOpen()) {
+                u64 millisAsMicros = osGetTime() % 1000 * 1000;
+                PcapRecord record(size, bytes);
+                pcap->addRecord(record);
+            }
         }
         
         // Print bytes with a valid CRC in green
@@ -225,8 +231,8 @@ namespace FMS::Link {
 		consoleInit(GFX_TOP, &defaultConsole);
         buffer = (u8*) memalign(BUFFER_SIZE, BUFFER_SIZE);
         Result ret = 0;
-		outStream.open("fms-" + std::to_string((int) time(nullptr)) + ".txt");
-		if (!outStream.is_open()) std::cout << ":: Failed to open log file" << std::endl;
+        pcap = new Pcap("fms-" + std::to_string((int) time(nullptr)) + ".pcap");
+		if (!pcap->isOpen()) std::cout << ":: Failed to open capture file" << std::endl;
         if (R_FAILED(ret = iruInit( (u32*) buffer, BUFFER_SIZE))) return ret;
         
         // The frequency of the Pokewalker is about 116 279,07 and it looks a lot like a Wii Fit U meter.
@@ -239,6 +245,9 @@ namespace FMS::Link {
     void exit() {
         iruExit();
         free(buffer);
+        std::cout << ":: Saving capture file" << std::endl;
+        pcap->flush();
+        delete pcap;
 		outStream.close();
     }
 

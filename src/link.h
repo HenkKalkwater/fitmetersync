@@ -16,6 +16,7 @@
 #include <iterator>
 
 #include "crc.h"
+#include "pcap.h"
 typedef u8 uint8_t;
 
 using namespace std;
@@ -53,6 +54,7 @@ namespace FMS::Link {
 	extern PrintConsole linkConsole;
 
 	extern std::ofstream outStream;
+    extern Pcap* pcap;
 
 	/**
 	 * \brief The size of the buffer used to receiving and sending data.
