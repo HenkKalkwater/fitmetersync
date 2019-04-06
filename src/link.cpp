@@ -6,7 +6,6 @@ namespace FMS::Link {
 	Handle recvFinishedEvent = 0;
 	PrintConsole linkConsole;
 	PrintConsole defaultConsole;
-	std::ofstream outStream;
     Pcap* pcap;
 
 	u8 secondShake[8] = { 0xA5, 0x00, 0x84, 0x01, 0x04, 0x04, 0x57, 0xd2 };
@@ -156,14 +155,7 @@ namespace FMS::Link {
             std::cout << "-> ";
         } else {
             std::cout << "<- ";
-			// Also print to file
-			//outStream << "---" << std::endl;
-			//for (size_t i = 0; i < size; i++) {
-				//outStream << std::hex << std::setw(2) << std::setfill('0') << (bytes[i] & 0xFF) << " ";
-			//}
-			//outStream << std::endl;
             if (pcap->isOpen()) {
-                u64 millisAsMicros = osGetTime() % 1000 * 1000;
                 PcapRecord record(size, bytes);
                 pcap->addRecord(record);
             }
@@ -248,7 +240,6 @@ namespace FMS::Link {
         std::cout << ":: Saving capture file" << std::endl;
         pcap->flush();
         delete pcap;
-		outStream.close();
     }
 
     Result getRecvFinishedEvent(Handle* handle) {

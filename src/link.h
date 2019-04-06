@@ -53,7 +53,6 @@ namespace FMS::Link {
 	extern PrintConsole defaultConsole;
 	extern PrintConsole linkConsole;
 
-	extern std::ofstream outStream;
     extern Pcap* pcap;
 
 	/**
