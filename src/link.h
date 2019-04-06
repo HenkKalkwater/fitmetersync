@@ -49,11 +49,11 @@ namespace FMS::Link {
 	vector<u8> stringtou8(std::string hex, vector<u8> vec);
 	std::string removespace(std::string str);
 
-    
+	
 	extern PrintConsole defaultConsole;
 	extern PrintConsole linkConsole;
 
-    extern Pcap* pcap;
+	extern Pcap* pcap;
 
 	/**
 	 * \brief The size of the buffer used to receiving and sending data.
@@ -111,7 +111,7 @@ namespace FMS::Link {
 	 * the transfer. Length is set to the total amount of bytes received. If the IR module receives more bytes
 	 * than fit in the \c data , it will shrink to the size of \c data , but the length will still be
 	 * the actual bytes received.
-     */
+	 */
 	Result blockReceiveData(u8* data, size_t size, u32* length, u64 timeout=U64_MAX);
 	
 	/**
@@ -135,7 +135,7 @@ namespace FMS::Link {
 	/**
 	 * \brief Waits for a connection.
 	 * \returns Result describing whether the attempt was succesful.
-	 */
+	*/
 	Result waitForConnection(u64 timeout=U64_MAX);
 	
 	/**
@@ -166,8 +166,8 @@ namespace FMS::Link {
 	};
 	
 	/**
-	 * Resets the connection ID.
-	 */
+	* Resets the connection ID.
+	*/
 	void resetConnectionId();
 }
 
