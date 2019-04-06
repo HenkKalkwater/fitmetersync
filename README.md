@@ -10,12 +10,18 @@ Suggestions about the protocol are welcome, as well as pull requests as long as 
 * A 3DS
 * A Wii U Fit Meter
 
+# Current features
+* Recording infrared signals and saving them to pcap (Wireshark-compatible) files.  
+    - TODO: add a wireshark protocol definition  
+* An attempt to emulate a Wii U, which fails for some reason still unknown  
+
 # Roadmap
 
 ## Before v0.1 <-- We are here
 * Document parts of the protocol
-    * Current roadblocK: I can't sniff IR data and resend them. The timing seems to be important and it is kinda hard with 1 IrDA receiver.
-        * I've ordered two IrDA USB dongles, once I get them, I'll resume working on this project.
+    * Current roadblocK: I can't sniff IR data and resend them. The timing seems to be important and it is kinda hard with 1 IrDA receiver.  
+        * I've ordered two IrDA USB dongles, once I get them, I'll resume working on this project.  
+            * The ones I ordered are quite crappy (maybe was expected from the price) and don't really work that well. Even if I wanted to use them, I'll have to learn how to manipulate these things from Windows XP, because that's the only operating system they work in.  
 
 ## v0.1
 * Emulate a wii fit meter or wii u (so they'll sync data)
