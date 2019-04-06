@@ -6,7 +6,7 @@ namespace FMS::Link {
 	Handle recvFinishedEvent = 0;
 	PrintConsole linkConsole;
 	PrintConsole defaultConsole;
-    Pcap* pcap;
+	Pcap* pcap;
 
 	u8 secondShake[8] = { 0xA5, 0x00, 0x84, 0x01, 0x04, 0x04, 0x57, 0xd2 };
 	u8 firstShake[8] = { 0xA5, 0x00, 0x84, 0x01, 0x03, 0x04, 0x70, 0x31 };
@@ -56,9 +56,9 @@ namespace FMS::Link {
 			reload = true;
 			button = swkbdInputText(&swkbd, mybuf, sizeof(mybuf));
 			if (button == 0)
-				    return;
+				return;
 			if (button == 1) {
-			    startTransfer(0, true);
+				startTransfer(0, true);
 			}
 			std::cout << button << std::endl;
 			std::cout << mybuf << std::endl;
@@ -102,39 +102,40 @@ namespace FMS::Link {
 		}
 		std::cout << ":: Stopped listening" << std::endl;
 	}
-    
-    void startTransfer2() {
+	
+	void startTransfer2() {
 			std::array<u8, 1> firstShake = {0x02};
 			std::array<u8, 3> secondShake = {0x00, 0x07, 0xF3};
-			std::array<u8, 6> thirdShake = {0x00, 0x07, 0xF4, 0x85, 0x00, 0x00};
+			std::array<u8, 6> thirdShake = {0x00, 0x10, 0xF4, 0x00, 0x00, 0x00};
 			std::array<u8, 6> fourthShake = {0x00, 0x0d, 0xF4, 0x01, 0x00, 0x00};
-			std::array<u8, 6> fifthShake = {0x00, 0x0d, 0xF4, 0x02, 0x00, 0x017};
+			std::array<u8, 6> fifthShake = {0x00, 0x1e, 0xF4, 0x02, 0x00, 0x017};
 			//std::array<u8, 8> thirdShake = {0xA5, 0x00, 0x03, 0x01, 0x00, 0xF2, 0x00};
 			std::array<u8, 1> goodbye = {0x0F};
+			const u32 TIMEOUT = 500000000;
 			
 			const size_t RECEIVE_SIZE = 256;
 			std::array<u8, RECEIVE_SIZE> receiveBuffer;
 			u32 receivedSize = 0;
 			
 			std::cout << ":: Emulating Wii U. Please connect a Fit Meter" << std::endl;
-			Result res = Link::waitForConnection(15000000000);
+			Result res = Link::waitForConnection(10 * TIMEOUT);
 			if (R_FAILED(res)) {
 				Link::printIfError(res);
 				Link::resetConnectionId();
 				return;
 			}
 			std::cout << "   Fit meter found!" << std::endl;
-			Link::blockReceivePacket(receiveBuffer, &receivedSize, 10000000000);
+			Link::blockReceivePacket(receiveBuffer, &receivedSize, TIMEOUT);
 			Link::blockSendPacket(firstShake, true);
-			Link::blockReceivePacket(receiveBuffer, &receivedSize, 100000000);
+			Link::blockReceivePacket(receiveBuffer, &receivedSize, TIMEOUT);
 			Link::blockSendPacket(secondShake, false);
-			Link::blockReceivePacket(receiveBuffer, &receivedSize, 100000000);
+			Link::blockReceivePacket(receiveBuffer, &receivedSize, TIMEOUT);
 			Link::blockSendPacket(thirdShake, false);
-			Link::blockReceivePacket(receiveBuffer, &receivedSize, 100000000);
+			Link::blockReceivePacket(receiveBuffer, &receivedSize, TIMEOUT);
 			Link::blockSendPacket(fourthShake, false);
-			Link::blockReceivePacket(receiveBuffer, &receivedSize, 100000000);
+			Link::blockReceivePacket(receiveBuffer, &receivedSize, TIMEOUT);
 			Link::blockSendPacket(fifthShake, false);
-			Link::blockReceivePacket(receiveBuffer, &receivedSize, 100000000);
+			Link::blockReceivePacket(receiveBuffer, &receivedSize, TIMEOUT);
 			
 			
 			Link::blockSendPacket(goodbye, true);
@@ -142,122 +143,122 @@ namespace FMS::Link {
 		}
 
 	void printIfError(Result ret) {
-		if (ret != 0) {
+		if (R_FAILED(ret)) {
 			std::cout << "   Result " << std::hex << ret << ": " << std::dec << osStrError(ret) << std::endl;
 			u32 level = R_LEVEL(ret);
 			std::cout << "   Lvl: " << level << "; Smry: " << R_SUMMARY(ret) << "; Mdl: " << R_MODULE(ret) << "; Desc: " << R_DESCRIPTION(ret) << std::endl;
 		}
 	}
 
-    void printBytes(u8* bytes, size_t size, bool sender) {
+	void printBytes(u8* bytes, size_t size, bool sender) {
 		consoleSelect(&linkConsole);
-        if (sender) {
-            std::cout << "-> ";
-        } else {
-            std::cout << "<- ";
-            if (pcap->isOpen()) {
-                PcapRecord record(size, bytes);
-                pcap->addRecord(record);
-            }
-        }
-        
-        // Print bytes with a valid CRC in green
-        if (crc8_arr(bytes, size - 1) == bytes[size - 1]) {
-            std::cout << "\e[32m";
-        } else {
-            std::cout << "\e[31m";
-        }
-        
-        for (u32 i = 0; i < size; i++){
-            std::cout << std::hex << std::setw(2) << std::setfill('0') << (bytes[i] & 0xFF) << " ";
-            
-            // Add spacing and newlines.
-            if ((i + 1) % 4 == 0) std::cout << " ";
-            if ((i + 1) % 12 == 0) {
+		if (sender) {
+			std::cout << "-> ";
+		} else {
+			std::cout << "<- ";
+			if (pcap->isOpen()) {
+				PcapRecord record(size, bytes);
+				pcap->addRecord(record);
+			}
+		}
+		
+		// Print bytes with a valid CRC in green
+		if (crc8_arr(bytes, size - 1) == bytes[size - 1]) {
+			std::cout << "\e[32m";
+		} else {
+			std::cout << "\e[31m";
+		}
+		
+		for (u32 i = 0; i < size; i++){
+			std::cout << std::hex << std::setw(2) << std::setfill('0') << (bytes[i] & 0xFF) << " ";
+			
+			// Add spacing and newlines.
+			if ((i + 1) % 4 == 0) std::cout << " ";
+			if ((i + 1) % 12 == 0) {
 				std::cout << std::endl;
 				if ((i + 1) < size) {
 					std::cout << "   ";
 				}
 			}
-        }
-        std::cout << "\e[0m";
-        // Add a newline in case the request wasn't a multiple of 8 bytes.
-        if ((size) % 12 != 0) std::cout << std::endl;
+		}
+		std::cout << "\e[0m";
+		// Add a newline in case the request wasn't a multiple of 8 bytes.
+		if ((size) % 12 != 0) std::cout << std::endl;
 		consoleSelect(&defaultConsole);
-    }
-    
-    std::string u8tostring(u8* bytes, size_t size) {
-        std::string returnstring;
-        std::stringstream buffer;
-        for (u32 i = 0; i < size; i++) {
-            buffer << std::hex << std::setw(2) << std::setfill('0') << (bytes[i] & 0xFF) << " ";
+	}
+	
+	std::string u8tostring(u8* bytes, size_t size) {
+		std::string returnstring;
+		std::stringstream buffer;
+		for (u32 i = 0; i < size; i++) {
+			buffer << std::hex << std::setw(2) << std::setfill('0') << (bytes[i] & 0xFF) << " ";
 
-            if ((i + 1) % 4 == 0) buffer << " ";
-        }
-        returnstring = buffer.str();
-        return returnstring;
-    }
-    vector<u8> stringtou8(std::string hex, vector<u8> vec) {
-        removespace(hex);
-        std::vector<string> arr(hex.length() / 2);
-        int j = 0;
-        for (size_t i = 0; i < hex.length(); i++) {
-            arr[i] = hex[j] + hex[j+1];
-            j=j+2;
-        }
+			if ((i + 1) % 4 == 0) buffer << " ";
+		}
+		returnstring = buffer.str();
+		return returnstring;
+	}
+	vector<u8> stringtou8(std::string hex, vector<u8> vec) {
+		removespace(hex);
+		std::vector<string> arr(hex.length() / 2);
+		int j = 0;
+		for (size_t i = 0; i < hex.length(); i++) {
+			arr[i] = hex[j] + hex[j+1];
+			j=j+2;
+		}
 
-        for (size_t i = 0; i < arr.size(); i++) {
-            std::istringstream converter(arr[i]);
-            converter >> std::hex >> vec[i];
-        }
-        return vec;
-    }
+		for (size_t i = 0; i < arr.size(); i++) {
+			std::istringstream converter(arr[i]);
+			converter >> std::hex >> vec[i];
+		}
+		return vec;
+	}
 
-    std::string removespace(std::string str) {
-        str.erase(remove(str.begin(), str.end(), ' '), str.end());
-        return str;
-    }
+	std::string removespace(std::string str) {
+		str.erase(remove(str.begin(), str.end(), ' '), str.end());
+		return str;
+	}
 
-    Result initialise() {
+	Result initialise() {
 		consoleInit(GFX_BOTTOM, &linkConsole);
 		consoleInit(GFX_TOP, &defaultConsole);
-        buffer = (u8*) memalign(BUFFER_SIZE, BUFFER_SIZE);
-        Result ret = 0;
-        pcap = new Pcap("fms-" + std::to_string((int) time(nullptr)) + ".pcap");
+		buffer = (u8*) memalign(BUFFER_SIZE, BUFFER_SIZE);
+		Result ret = 0;
+		pcap = new Pcap("fms-" + std::to_string((int) time(nullptr)) + ".pcap");
 		if (!pcap->isOpen()) std::cout << ":: Failed to open capture file" << std::endl;
-        if (R_FAILED(ret = iruInit( (u32*) buffer, BUFFER_SIZE))) return ret;
-        
-        // The frequency of the Pokewalker is about 116 279,07 and it looks a lot like a Wii Fit U meter.
-        // Let's try that frequency, because you have to do something.
-        IRU_SetBitRate(3);
-        if (R_FAILED(ret = getRecvFinishedEvent(&recvFinishedEvent))) return ret;
-        return ret;
-    }
-    
-    void exit() {
-        iruExit();
-        free(buffer);
-        std::cout << ":: Saving capture file" << std::endl;
-        pcap->flush();
-        delete pcap;
-    }
+		if (R_FAILED(ret = iruInit( (u32*) buffer, BUFFER_SIZE))) return ret;
+		
+		// The frequency of the Pokewalker is about 116 279,07 and it looks a lot like a Wii Fit U meter.
+		// Let's try that frequency, because you have to do something.
+		IRU_SetBitRate(3);
+		if (R_FAILED(ret = getRecvFinishedEvent(&recvFinishedEvent))) return ret;
+		return ret;
+	}
+	
+	void exit() {
+		iruExit();
+		free(buffer);
+		std::cout << ":: Saving capture file" << std::endl;
+		pcap->flush();
+		delete pcap;
+	}
 
-    Result getRecvFinishedEvent(Handle* handle) {
-        Result ret = 0;
-        u32 *cmdbuf = getThreadCommandBuffer();
-        
-        cmdbuf[0] = IPC_MakeHeader(0xE,0,0); // 0xE0000
-        
-        if(R_FAILED(ret = svcSendSyncRequest(iruGetServHandle())))return ret;
-        
-        ret = (Result)cmdbuf[1];
-        
-        *handle = (Handle) cmdbuf[3];
-        
-        return ret;
-    }
-    
-    
+	Result getRecvFinishedEvent(Handle* handle) {
+		Result ret = 0;
+		u32 *cmdbuf = getThreadCommandBuffer();
+		
+		cmdbuf[0] = IPC_MakeHeader(0xE,0,0); // 0xE0000
+		
+		if(R_FAILED(ret = svcSendSyncRequest(iruGetServHandle())))return ret;
+		
+		ret = (Result)cmdbuf[1];
+		
+		*handle = (Handle) cmdbuf[3];
+		
+		return ret;
+	}
+	
+	
 	Result blockReceiveData(u8* data, size_t size, u32* length, u64 timeout) {
 		Result ret = 0;
 		if (R_FAILED(ret = IRU_StartRecvTransfer(BUFFER_SIZE, 0))) { 
@@ -270,26 +271,33 @@ namespace FMS::Link {
 		if (R_FAILED(ret = svcClearEvent(recvFinishedEvent))) return ret;
 		if (R_FAILED(ret = IRU_WaitRecvTransfer(length))) return ret;
 		if (*length == 0) {
-		    return ret;
+			return ret;
 		}
 		std::copy(buffer, buffer + std::min((size_t) *length, size), data);
-        
+		
 		printBytes(data, (size_t) *length, false);
 
 		return ret;
 	}
-    
-    Result blockReceivePacket(u8* data, size_t size, u32* length, u64 timeout) {
+	
+	Result blockReceivePacket(u8* data, size_t size, u32* length, u64 timeout) {
 		u8 received[size];
 		u32 receivedSize = 0;
 		blockReceiveData(received, size, &receivedSize, timeout);
 		
 		u8 packetSize = 0;
 		
+		if (receivedSize == 0) {
+			std::cout << "   Timeout." << std::endl;
+			*length = 0;
+			return MAKERESULT(RL_INFO, RS_NOP, RM_LINK, RD_TIMEOUT);
+		}
+		
 		if (receivedSize < 4) {
 			// We need at least 4 bytes: Magic number, ConnectionID, Flags/size and a CRC-8.
 			*length = 0;
 			// Return error if no data was received.
+			std::cout << "   Received too few bytes" << std::endl;
 			return MAKERESULT(RL_STATUS, RS_NOP, RM_LINK, RD_NO_DATA);
 		}
 		
@@ -297,7 +305,8 @@ namespace FMS::Link {
 			return MAKERESULT(RL_STATUS, RS_NOP, RM_LINK, RD_NOT_FOUND);
 		}
 		
-		if (received[1] != connectionId) {
+		if (received[1] != connectionId && received[1] != 0x00) {
+			std::cout << "   Incorrect connectionId" << std::endl;
 			return MAKERESULT(RL_STATUS, RS_NOP, RM_LINK, RD_NOT_FOUND);
 		}
 		
@@ -305,7 +314,7 @@ namespace FMS::Link {
 			return MAKERESULT(RL_STATUS, RS_NOP, RM_LINK, RD_NOT_FOUND);
 		}
 		
-		if ((received[2] & 0x80) == 0x80) {
+		if ((received[2] & 0x80) == 0x80 && received[1] != 0x00) {
 			// The other client would like to close the connection.
 			connectionId = 0;
 		}
@@ -319,11 +328,12 @@ namespace FMS::Link {
 			packetSize = received[2] & 0b00111111;
 			memcpy(data, received + 3, packetSize);
 		}
+		*length = packetSize;
 		
 		return 0;
 	}
-    
-    Result waitForConnection(u64 timeout) {
+	
+	Result waitForConnection(u64 timeout) {
 		Result ret = 0;
 		if (connectionId != 0) {
 			// Error if there is already an ongoing connection.
@@ -359,7 +369,7 @@ namespace FMS::Link {
 		connectionId = received[6];
 		return ret;
 	}
-    
+	
 	Result blockSendData(u8* data, u32 length) {
 		data[length - 1] = crc8_arr(data, length - 1);
 		Result ret = 0;
@@ -367,10 +377,10 @@ namespace FMS::Link {
 		IRU_WaitSendTransfer();
 		
 		printBytes(data, length, true);
-	    return ret;
+		return ret;
 	}
-    
-    Result blockSendPacket(u8* data, u32 length, bool close) {
+	
+	Result blockSendPacket(u8* data, u32 length, bool close) {
 		u8* packet;
 		u32 packetSize;
 		if (length > 0b00111111) {
