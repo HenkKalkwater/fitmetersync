@@ -60,13 +60,13 @@ function wfmtrnet_protocol.dissector(buffer, pinfo, tree)
 	-- If the length (3th byte), has the flag 0x40 set, the actual length is contained in the next byte
 	if bit32.band(buffer(2, 1):le_uint(), 0x40) == 0x40 then
 		subtree:add_le(header_data_length, buffer(3, 1))
-		subtree:add(header_data, buffer(2, buffer(3, 1):le_uint()), "Wii Fit Meter Data")
+		subtree:add_le(header_data, buffer(4, buffer(3, 1):le_uint()), "Wii Fit Meter Data")
 	else
 		-- 0x3F = 0b00111111
 		data_length = bit32.band(buffer(2,1):le_uint(), 0x3F)
 		--report_failure(length)
 		subtree:add_le(header_data_length, buffer(2, 1), data_length)
-		subtree:add(header_data, buffer(3, data_length))
+		subtree:add_le(header_data, buffer(3, data_length))
 	end
 	subtree:add_le(header_checksum, buffer(length - 1, 1)):append_text(" (Expected: "..crc8_list(buffer(0, length - 1):bytes())..")")
 	--crc8_list(buffer(0, length - 1):bytes())
