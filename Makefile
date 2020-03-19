@@ -63,7 +63,7 @@ CFLAGS	:=	-g -Wall -O2 -mword-relocations \
 
 CFLAGS	+=	$(INCLUDE) -DARM11 -D_3DS -DVERSION=\"$(VERSTRING)\"
 
-CXXFLAGS	:= $(CFLAGS) -fno-rtti -fno-exceptions -std=gnu++11
+CXXFLAGS	:= $(CFLAGS) -fno-rtti -fno-exceptions -std=gnu++17
 
 ASFLAGS	:=	-g $(ARCH)
 LDFLAGS	=	-specs=3dsx.specs -g $(ARCH) -Wl,-Map,$(notdir $*.map)
@@ -169,7 +169,7 @@ ifneq ($(ROMFS),)
 	export _3DSXFLAGS += --romfs=$(CURDIR)/$(ROMFS)
 endif
 
-.PHONY: all clean 3dslink
+.PHONY: all clean 3dslink citra
 
 #---------------------------------------------------------------------------------
 all: $(BUILD) $(GFXBUILD) $(DEPSDIR) $(ROMFS_T3XFILES) $(T3XHFILES)
@@ -178,7 +178,7 @@ all: $(BUILD) $(GFXBUILD) $(DEPSDIR) $(ROMFS_T3XFILES) $(T3XHFILES)
 $(BUILD):
 	@mkdir -p $@
 
-3dslink:	$(OUTPUT).3dsx
+3dslink: $(OUTPUT).3dsx
 	@echo Linking 3ds
 ifndef IP_ADDRESS
 	@echo No ip address specified in ipaddress.txt
@@ -186,6 +186,9 @@ ifndef IP_ADDRESS
 else
 	@3dslink -a $(IP_ADDRESS) $(OUTPUT).3dsx
 endif
+
+citra: $(OUTPUT).3dsx
+	@citra-qt ${OUTPUT}.3dsx
 
 ifneq ($(GFXBUILD),$(BUILD))
 $(GFXBUILD):
