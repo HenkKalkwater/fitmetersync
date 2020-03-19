@@ -1,7 +1,7 @@
 #ifndef PCAP_H
 #define PCAP_H
 
-#include "3ds.h"
+#include <3ds.h>
 #include <iostream>
 #include <fstream>
 #include <vector>
