@@ -239,7 +239,7 @@ namespace FMS::Link {
 		iruExit();
 		free(buffer);
 		std::cout << ":: Saving capture file" << std::endl;
-		pcap->flush();
+		//pcap->flush();
 		delete pcap;
 	}
 

@@ -85,7 +85,7 @@ namespace FMS {
 	private:
 		Dbg() {
 			this->prefixLenght = std::string(__FILE__).find("src/debug.h");
-			std::string versionInf = "JDBX ";
+			std::string versionInf = "FMS RESERVER ";
 			versionInf += __TIMESTAMP__;
 			dbg(versionInf.c_str(), __FILE__, __LINE__);
 		}
