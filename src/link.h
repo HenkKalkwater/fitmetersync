@@ -21,7 +21,7 @@ typedef u8 uint8_t;
 
 using namespace std;
 
-namespace FMS::Link {
+namespace fms::Link {
 	/**
 	 * \brief Result Module that is used for results caused by the functions in this namespace.
 	 */

@@ -1,6 +1,6 @@
 #include "pcap.h"
 
-namespace FMS {
+namespace fms {
 	void Pcap::addRecord(PcapRecord record) {
 		this->records.push_back(record);
 	}

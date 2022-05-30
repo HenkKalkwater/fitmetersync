@@ -4,13 +4,13 @@
 #include <iostream>
 #include <string>
 
-#define FMS_TRC      do { ::FMS::Dbg::inst().trc(__FILE__, __LINE__);      } while(0);
-#define FMS_DBG(msg) do { ::FMS::Dbg::inst().dbg(msg, __FILE__, __LINE__); } while(0);
-#define FMS_INF(msg) do { ::FMS::Dbg::inst().inf(msg, __FILE__, __LINE__); } while(0);
-#define FMS_WRN(msg) do { ::FMS::Dbg::inst().wrn(msg, __FILE__, __LINE__); } while(0);
-#define FMS_ERR(msg) do { ::FMS::Dbg::inst().err(msg, __FILE__, __LINE__); } while(0);
+#define FMS_TRC      do { ::fms::Dbg::inst().trc(__FILE__, __LINE__);      } while(0);
+#define FMS_DBG(msg) do { ::fms::Dbg::inst().dbg(msg, __FILE__, __LINE__); } while(0);
+#define FMS_INF(msg) do { ::fms::Dbg::inst().inf(msg, __FILE__, __LINE__); } while(0);
+#define FMS_WRN(msg) do { ::fms::Dbg::inst().wrn(msg, __FILE__, __LINE__); } while(0);
+#define FMS_ERR(msg) do { ::fms::Dbg::inst().err(msg, __FILE__, __LINE__); } while(0);
 
-namespace FMS {
+namespace fms {
 	class Dbg {
 	public:
 		static Dbg& inst() {

@@ -61,7 +61,7 @@ CFLAGS	:=	-g -Wall -O2 -mword-relocations \
 			-fomit-frame-pointer -ffunction-sections \
 			$(ARCH)
 
-CFLAGS	+=	$(INCLUDE) -DARM11 -D_3DS -DVERSION=\"$(VERSTRING)\"
+CFLAGS	+=	$(INCLUDE) -DARM11 -D__3DS__ -DVERSION=\"$(VERSTRING)\"
 
 CXXFLAGS	:= $(CFLAGS) -fno-rtti -fno-exceptions -std=gnu++17
 

@@ -3,7 +3,7 @@
 
 #include <3ds.h>
 
-namespace FMS {
+namespace fms {
 	const int GP = 0x107;
 	const int DI = 0x7;
 

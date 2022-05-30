@@ -1,6 +1,6 @@
 #include "link.h"
 
-namespace FMS::Link {
+namespace fms::Link {
 	u8* buffer;
 	u8 connectionId = 0;
 	Handle recvFinishedEvent = 0;

@@ -8,7 +8,7 @@
 #include <algorithm>
 #include <cstring>
 
-namespace FMS {
+namespace fms {
 	/**
 	* Single record in the Pcap file
 	* \see https://wiki.wireshark.org/Development/LibpcapFileFormat

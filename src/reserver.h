@@ -24,7 +24,7 @@
 #include "link.h"
 #include "tsdeque.h"
 
-namespace FMS {
+namespace fms {
 	
 	enum PacketType {
 		NONE = 0x0,

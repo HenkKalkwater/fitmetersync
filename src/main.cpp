@@ -4,7 +4,7 @@
 #include "link.h"
 #include "reserver.h"
 
-using namespace FMS;
+using namespace fms;
 
 int main(int argc, char** argv) {
 	gfxInitDefault();

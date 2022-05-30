@@ -1,6 +1,6 @@
 #include "reserver.h"
 
-namespace FMS {
+namespace fms {
     
     std::optional<Packet*> Packet::fromVector(const std::vector<u8> &data) {
         if (data.size() < PACKET_HEADER_SIZE) {
@@ -215,7 +215,7 @@ namespace FMS {
 	}
 }
 
-void FMS::REServer::handleIrComms(void* args) {
+void fms::REServer::handleIrComms(void* args) {
 	REServer* self = static_cast<REServer*>(args);
 	const u64 TIMEOUT = 100000000;
 	const u32 RECV_BUF_SIZE = 2000;
@@ -231,7 +231,7 @@ void FMS::REServer::handleIrComms(void* args) {
 				if (p->payload().has_value()) {
 					u32 length;
 					std::vector<u8> received = std::vector<u8>(RECV_BUF_SIZE);
-					res = FMS::Link::blockReceivePacket(received.data(), received.size(), &length, TIMEOUT);
+					res = fms::Link::blockReceivePacket(received.data(), received.size(), &length, TIMEOUT);
 					received.erase(received.begin() + length, received.end());
 					self->pendingIPPackets.push_back(new ReplyPacket(RECEIVE_PACKET_REPLY, res, received));
 				} else {
@@ -240,7 +240,7 @@ void FMS::REServer::handleIrComms(void* args) {
 				break;
 			case SEND_PACKET:
 				if (p->payload().has_value()) {
-					res = FMS::Link::blockSendPacket(p->payload().value().data(), p->payload().value().size(), false);
+					res = fms::Link::blockSendPacket(p->payload().value().data(), p->payload().value().size(), false);
 					self->pendingIPPackets.push_back(new ReplyPacket(RECEIVE_PACKET_REPLY, res));
 				} else {
 					std::cout << "Invalid SEND packet" << std::endl;
@@ -254,7 +254,7 @@ void FMS::REServer::handleIrComms(void* args) {
 }
 
 
-void FMS::REServer::updateState(FMS::SocketState &state, u8 *data, size_t newDataLength) {
+void fms::REServer::updateState(fms::SocketState &state, u8 *data, size_t newDataLength) {
 	state.buffer.reserve(state.buffer.size() + newDataLength);
     std::cout << std::hex;
 	for (size_t i = 0; i < newDataLength; i++) {

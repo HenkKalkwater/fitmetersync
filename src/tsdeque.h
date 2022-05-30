@@ -1,47 +1,45 @@
 #ifndef TSDEQUE_H
 #define TSDEQUE_H
 
-#include <3ds.h>
+#include "platform/condvar.h"
+#include "platform/lock.h"
+#include "platform/mutex.h"
 #include <deque>
+
+namespace fms {
 
 template<class T>
 class TSDeque {
 public:
-    TSDeque() {
-        LightLock_Init(&lock);
-        LightEvent_Init(&event, RESET_ONESHOT);
-    }
+    TSDeque() {}
     
     bool empty() {
-        LightLock_Lock(&lock);
+        platform::Lock lock(m_mutex) ;
         bool res = deque.empty();
-        LightLock_Unlock(&lock);
         return res;
     }
     
     T pop_front() {
-        LightLock_Lock(&lock);
+        platform::Lock lock(m_mutex) ;
         while(deque.empty()) {
-            LightLock_Unlock(&lock);
-            LightEvent_Wait(&event);
-            LightLock_Lock(&lock);
+            m_condition.wait(lock);
         }
         T t = deque.front();
-        deque.pop_front();
-        LightLock_Unlock(&lock);
+        deque.pop_front();;
         return t;
     }
     
     void push_back(const T &t) {
-        LightLock_Lock(&lock);
+        platform::Lock lock(m_mutex) ;
         deque.push_back(t);
-        LightLock_Unlock(&lock);
-        LightEvent_Signal(&event);
+        m_condition.wakeup();
     }
 private:
     std::deque<T> deque;
-    LightLock lock;
-    LightEvent event;
+    platform::Mutex m_mutex;
+    platform::CondVar m_condition;
 };  
+
+} // NS fms
 
 #endif // TSDEQUE_H
