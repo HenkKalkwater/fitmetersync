@@ -26,8 +26,8 @@ class Client:
     async def handle_incoming(self):
         try:
             while True:
-                raw_length = await self._reader.readexactly(4)
-                length = struct.unpack(">I", raw_length)
+                raw_length = await self._reader.readexactly(8)
+                p_type, length = struct.unpack(">II", raw_length)
                 LOGGER.debug(f"Packet of {length} bytes incoming")
                 data = await self._reader.readexactly(length)
                 LOGGER.debug(data)
@@ -37,9 +37,9 @@ class Client:
     async def handle_outgoing(self):
         try:
             while True:
-                item = await self._outqueue.get()
+                p_type, item = await self._outqueue.get()
                 data_len = len(item)
-                data = struct.pack(f">I", data_len)
+                data = struct.pack(f">II", p_type, data_len)
                 data += item
                 self._writer.write(data)
                 await self._writer.drain()
@@ -62,7 +62,7 @@ async def main():
             port=args.port)
 
     client = Client(reader, writer)
-    await client.send("Hello world".encode("UTF-8"))
+    await client.send((0xA, bytes([])))
     await asyncio.sleep(5)
     await client.stop()
 

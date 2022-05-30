@@ -1,6 +1,75 @@
 #include "reserver.h"
 
 namespace FMS {
+    
+    std::optional<Packet*> Packet::fromVector(const std::vector<u8> &data) {
+        if (data.size() < PACKET_HEADER_SIZE) {
+            return std::nullopt;
+        }
+        PacketType type = static_cast<PacketType>((data[0] << 24) | (data[1] << 16) | (data[2] << 8) | data[3]);
+        if (type & PacketType::REPLY_FLAG && data.size() >= PACKET_HEADER_SIZE + sizeof(Result)) {
+			Result res = static_cast<Result>(data[8] | (data[9] << 8) | (data[10] << 16) | data[11] << 24);
+			
+			std::optional<std::vector<u8>> payload = std::nullopt;
+			if (data.size() > PACKET_HEADER_SIZE + sizeof(Result)) {
+				payload = std::vector<u8>(data.begin() + PACKET_HEADER_SIZE + sizeof(Result), data.end());
+			}
+			
+            return new ReplyPacket(type, res, payload);
+        } else {
+			std::optional<std::vector<u8>> payload = std::nullopt;
+			if (data.size() > PACKET_HEADER_SIZE) {
+				payload = std::vector<u8>(data.begin() + PACKET_HEADER_SIZE, data.end());
+			}
+			return new Packet(type, payload);
+		}
+    }
+    
+	std::vector<u8> Packet::asVector() {
+		u32 payloadSize = (this->m_payload.has_value() ? this->m_payload.value().size() : 0);
+		std::vector<u8> data(PACKET_HEADER_SIZE + payloadSize);
+		data[0] =  this->m_type        & 0xff;
+		data[1] = (this->m_type >> 8 ) & 0xff;
+		data[2] = (this->m_type >> 16) & 0xff;
+		data[3] = (this->m_type >> 24) & 0xff;
+		data[4] =  payloadSize        & 0xff;
+		data[5] = (payloadSize >> 8 ) & 0xff;
+		data[6] = (payloadSize >> 16) & 0xff;
+		data[7] = (payloadSize >> 24) & 0xff;
+		if (this->m_payload.has_value()) {
+			auto data_it = data.begin() + PACKET_HEADER_SIZE;
+			for(auto it = this->m_payload.value().begin(); it < this->m_payload.value().end(); it++, data_it++) {
+				*data_it = *it;
+			}
+		}
+		return data;
+	}
+	
+	std::vector<u8> ReplyPacket::asVector() {
+		u32 payloadSize = (this->m_payload.has_value() ? this->m_payload.value().size() : 0  + sizeof(Result));
+		std::vector<u8> data(PACKET_HEADER_SIZE + payloadSize);
+		data[0] =  this->m_type        & 0xff;
+		data[1] = (this->m_type >> 8 ) & 0xff;
+		data[2] = (this->m_type >> 16) & 0xff;
+		data[3] = (this->m_type >> 24) & 0xff;
+		data[4] =  payloadSize        & 0xff;
+		data[5] = (payloadSize >> 8 ) & 0xff;
+		data[6] = (payloadSize >> 16) & 0xff;
+		data[7] = (payloadSize >> 24) & 0xff;
+		data[8]  =  this->m_result        & 0xff;
+		data[9]  = (this->m_result >> 8 ) & 0xff;
+		data[10] = (this->m_result >> 16) & 0xff;
+		data[11] = (this->m_result >> 24) & 0xff;
+		
+		if (this->m_payload.has_value()) {
+			auto data_it = data.begin() + PACKET_HEADER_SIZE + sizeof(Result);
+			for(auto it = this->m_payload.value().begin(); it < this->m_payload.value().end(); it++, data_it++) {
+				*data_it = *it;
+			}
+		}
+		return data;
+	}
+    
 	REServer::REServer() {
 	
 	}
@@ -23,11 +92,12 @@ namespace FMS {
 	
 		listen(this->server_socket, 2);
 		s32 myPrio;
-		svcCreateEvent(&this->ev_stop, RESET_ONESHOT);
+		svcCreateEvent(&this->ev_stop, RESET_STICKY);
 		svcCreateEvent(&this->ev_send, RESET_ONESHOT);
 		svcCreateEvent(&this->ev_received, RESET_ONESHOT);
 		svcGetThreadPriority(&myPrio, CUR_THREAD_HANDLE);
 		this->acceptThread = threadCreate(&REServer::handleAccept, this, 0x1000, myPrio + 1, -2, false);
+		this->irComsThread = threadCreate(&REServer::handleIrComms, this, 0x1000, myPrio + 1, -2, false);
 		char tmp[100];
 		snprintf(tmp, 100, "Socket opened on port 8476 on %s", inet_ntoa(server_address.sin_addr));
 		FMS_INF(tmp)
@@ -40,6 +110,11 @@ namespace FMS {
 		svcSignalEvent(this->ev_stop);
 		threadJoin(this->acceptThread, U64_MAX);
 		threadFree(this->acceptThread);
+		// To make the thread stop
+		this->pendingIRPackets.push_back(new Packet(NONE));
+		threadJoin(this->irComsThread, U64_MAX);
+		threadFree(this->irComsThread);
+		svcClearEvent(this->ev_stop);
 	}
 	
 	void REServer::handleAccept(void* args) {
@@ -105,7 +180,10 @@ namespace FMS {
 						}
 					} else if(cur.revents & POLLOUT) {
                         if (!self->pendingIPPackets.empty()) {
-                            std::vector<u8> packet = self->pendingIPPackets.pop_front();
+                            Packet* p = self->pendingIPPackets.pop_front();
+							std::vector<u8> packet = p->asVector();
+							delete p;
+							
                             ssize_t sent = send(cur.fd, packet.data(), packet.size(), 0);
                             if (sent < 0) {
                                 std::cout << "Error occured: " << errno <<	": " << strerror(errno) << std::endl;
@@ -137,6 +215,45 @@ namespace FMS {
 	}
 }
 
+void FMS::REServer::handleIrComms(void* args) {
+	REServer* self = static_cast<REServer*>(args);
+	const u64 TIMEOUT = 100000000;
+	const u32 RECV_BUF_SIZE = 2000;
+	
+	while (true) {
+		// Check if we're woken up by the stop event
+		Result stopRes = svcWaitSynchronization(self->ev_stop, 0);
+		if (stopRes == 0) break;
+		Packet* p = self->pendingIRPackets.pop_front();
+		Result res;
+		switch (p->type()) {
+			case RECEIVE_PACKET:
+				if (p->payload().has_value()) {
+					u32 length;
+					std::vector<u8> received = std::vector<u8>(RECV_BUF_SIZE);
+					res = FMS::Link::blockReceivePacket(received.data(), received.size(), &length, TIMEOUT);
+					received.erase(received.begin() + length, received.end());
+					self->pendingIPPackets.push_back(new ReplyPacket(RECEIVE_PACKET_REPLY, res, received));
+				} else {
+					std::cout << "Invalid RECEIVE packet" << std::endl;
+				}
+				break;
+			case SEND_PACKET:
+				if (p->payload().has_value()) {
+					res = FMS::Link::blockSendPacket(p->payload().value().data(), p->payload().value().size(), false);
+					self->pendingIPPackets.push_back(new ReplyPacket(RECEIVE_PACKET_REPLY, res));
+				} else {
+					std::cout << "Invalid SEND packet" << std::endl;
+				}
+				break;
+			default:
+				std::cout << "Unknown packet type: " << std::hex << p->type() << std::dec << std::endl;
+		}
+		delete p;
+	}
+}
+
+
 void FMS::REServer::updateState(FMS::SocketState &state, u8 *data, size_t newDataLength) {
 	state.buffer.reserve(state.buffer.size() + newDataLength);
     std::cout << std::hex;
@@ -148,17 +265,23 @@ void FMS::REServer::updateState(FMS::SocketState &state, u8 *data, size_t newDat
 	
 	while (true) {
 		std::cout << "Parsing packet of data" << std::endl;
-		if (state.expectedPacketSize == 0 && state.buffer.size() >= sizeof(state.expectedPacketSize)) {
-			state.expectedPacketSize = static_cast<u32>((state.buffer[0] << 24) | (state.buffer[1] << 16) | (state.buffer[2] << 8) | state.buffer[3]);
+		if (state.nextType == NONE && state.buffer.size() >= PACKET_HEADER_SIZE) {
+			state.nextType = static_cast<PacketType>((state.buffer[0] << 24) | (state.buffer[1] << 16) | (state.buffer[2] << 8) | state.buffer[3]);
+			state.expectedPacketSize = static_cast<u32>((state.buffer[4] << 24) | (state.buffer[5] << 16) | (state.buffer[6] << 8) | state.buffer[7]);
 			state.buffer.reserve(state.expectedPacketSize + sizeof(state.expectedPacketSize));
             std::cout << "Expecting " << state.expectedPacketSize << " bytes of data" << std::endl;
-		} else if (state.expectedPacketSize > 0 && state.expectedPacketSize <= state.buffer.size() - sizeof(state.expectedPacketSize)) {
-            std::cout << "Made a packet!" << std::endl;
+		} else if (state.nextType != NONE && state.expectedPacketSize <= state.buffer.size() - PACKET_HEADER_SIZE) {
 			// We have received enough data to make a packet!
-			std::vector<u8> packet(state.buffer.begin() + 4, state.buffer.begin() + 4 + state.expectedPacketSize);
-			pendingIRPackets.push_back(std::move(packet));
-			state.buffer.erase(state.buffer.begin(), state.buffer.begin() + 4 + state.expectedPacketSize);
+			std::optional<Packet*> packet = Packet::fromVector(std::vector<u8>(state.buffer.begin(), state.buffer.begin() + PACKET_HEADER_SIZE + state.expectedPacketSize));
+			if (packet.has_value()) {
+				pendingIRPackets.push_back(packet.value());
+				std::cout << "Made a packet!" << std::endl;
+			} else {
+				std::cout << "Encountered malformed packet" << std::endl;
+			}
+			state.buffer.erase(state.buffer.begin(), state.buffer.begin() + PACKET_HEADER_SIZE + state.expectedPacketSize);
 			state.expectedPacketSize = 0;
+			state.nextType = NONE;
 		} else {
             std::cout << "Waiting for buffer to fill" << std::endl;
 			break;

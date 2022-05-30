@@ -21,22 +21,51 @@
 #include <netinet/in.h>
 
 #include "debug.h"
+#include "link.h"
 #include "tsdeque.h"
 
 namespace FMS {
+	
 	enum PacketType {
-		NONE,
-		SEND_RAW,
-		SEND_RAW_REPLY,
-		RECEIVE_RAW,
-		RECEIVE_RAW_REPLY,
-		WAIT_CONNECTION,
-		WAIT_CONNECTION_REPLY,
-		SEND_PACKET,
-		SEND_PACKET_REPLY,
-		RECEIVE_PACKET,
-		RECEIVE_PACKET_REPLY
+		NONE = 0x0,
+		REPLY_FLAG = 0x1,
+		SEND_RAW = 0x2,
+		SEND_RAW_REPLY = 0x3,
+		RECEIVE_RAW = 0x4,
+		RECEIVE_RAW_REPLY = 0x5,
+		WAIT_CONNECTION = 0x6,
+		WAIT_CONNECTION_REPLY = 0x7,
+		SEND_PACKET = 0x8,
+		SEND_PACKET_REPLY = 0x9,
+		RECEIVE_PACKET = 0xA,
+		RECEIVE_PACKET_REPLY = 0xB
 	};
+	
+	class Packet {
+	public:
+		Packet(PacketType type, std::optional<std::vector<u8>> payload = std::nullopt) : m_type(type), m_payload(payload) {}
+		virtual ~Packet() {}
+		PacketType type() const { return m_type; }
+		static std::optional<Packet*> fromVector(const std::vector<u8> &bytes);
+		std::optional<std::vector<u8>> payload() { return m_payload; }
+		
+		bool isReply() const { return m_type & PacketType::REPLY_FLAG; }
+		virtual std::vector<u8> asVector();
+	protected:
+		const PacketType m_type;
+		const std::optional<std::vector<u8>> m_payload;
+	};
+	
+	class ReplyPacket : public Packet {
+	public:
+		ReplyPacket(PacketType type, Result result, std::optional<std::vector<u8>> payload = std::nullopt) : Packet(type, payload), m_result(result){}
+		Result result() const { return m_result; }
+		std::vector<u8> asVector() override;
+	private:
+		const Result m_result;
+	};
+	
+	const size_t PACKET_HEADER_SIZE = 8;
 	/**
 	 * Each packet has the very simple structure of:
 	 * PacketType type
@@ -51,7 +80,7 @@ namespace FMS {
 	 * This struct is used for keeping the state machine of parsing the data.
 	 */
 	struct SocketState {
-		PacketType nextType;
+		PacketType nextType = NONE;
 		u32 expectedPacketSize = 0;
 		std::vector<u8> buffer;
 	};
@@ -78,9 +107,11 @@ namespace FMS {
 		 */
 		void handleClient(void* args);
 		static void handleAccept(void* args);
+		static void handleIrComms(void* args);
 		void updateState(SocketState &state, u8* data, size_t newDataLength);
 		
 		Thread acceptThread;
+		Thread irComsThread;
 		
 		struct handleClientArgs {
 			int client_socket;
@@ -90,12 +121,14 @@ namespace FMS {
 		bool requestedStop = false;
 		/**
 		 * Packets still to be sent to the computer.
+		 * Note: the consumer is responsible for deleting the pointers.
 		 */
-		TSDeque<std::vector<u8>> pendingIPPackets;
+		TSDeque<Packet*> pendingIPPackets;
 		/**
 		 * Packets still needed to be sent over IR.
+		 * Note: the consumer is responsible for deleting the pointers.
 		 */
-		TSDeque<std::vector<u8>> pendingIRPackets;
+		TSDeque<Packet*> pendingIRPackets;
 		
 		Handle ev_stop, ev_received, ev_send;
 	};
