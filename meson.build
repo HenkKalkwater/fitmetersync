@@ -1,23 +1,10 @@
-project('fitmetersync', 'cpp')
+project('fitmetersync', 'cpp',
+	default_options: ['cpp_std=c++17'])
 
-src_files = [
-	'src/platform/lock.cpp',
-	'src/crc.cpp',
-	'src/link.cpp',
-	'src/main.cpp',
-	'src/pcap.cpp',
-	'src/reserver.cpp',
-	'src/tsdeque.cpp'
-]
+
+subdir('libfms')
+subdir('fms-cli')
 
 if target_machine.system() == 'horizon'
-	src_files += [
-		'src/platform/ctru/condvar.cpp',
-		'src/platform/ctru/mutex.cpp',
-		'src/platform/ctru/thread.cpp'
-	]
+	subdir('fms-3ds')
 endif
-
-executable('fitmetersync',
-	src_files
-)

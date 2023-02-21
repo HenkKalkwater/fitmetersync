@@ -1,0 +1,7 @@
+/**
+ * \namespace fms::platform
+ * \brief Platform abstraction layer
+ *
+ * Abstracts away platform layer components, such as synchronisation primitives, threads,
+ * access to IR hardware etc.
+ */

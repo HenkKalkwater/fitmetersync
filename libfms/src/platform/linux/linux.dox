@@ -1,0 +1,6 @@
+/**
+ * \namespace fms::platform::linux
+ * \brief Linux platform abstraction implementation.
+ *
+ * Might also work with other POSIX platforms, but that is not tested.
+ */

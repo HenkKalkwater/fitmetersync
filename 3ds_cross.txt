@@ -5,11 +5,10 @@ portlibs = devkitpro / 'portlibs/3ds'
 
 system_includes = ['-I' + portlibs / 'include','-I' + devkitpro / 'libctru/include']
 system_libraries = ['-L' + portlibs / 'lib','-L' + devkitpro / 'libctru/lib','-lctru']
-boost_include = '-I/home/chris/Programmeren/3DS/MPD/boost/include'
 
 common_arch_flags = ['-march=armv6k', '-mtune=mpcore', '-mfloat-abi=hard', '-mtp=soft']
-common_compiler_flags = common_arch_flags + system_includes + [boost_include, '-g', '-Wall', '-O2', '-mword-relocations', '-fomit-frame-pointer', '-ffunction-sections', '-D__3DS__']
-common_linker_flags = system_libraries + ['-specs=3dsx.specs', '-g'] + common_arch_flags + ['-Wl,-Map,$(notdir $*.map)']
+common_compiler_flags = common_arch_flags + system_includes + ['-g', '-Wall', '-O2', '-mword-relocations', '-fomit-frame-pointer', '-ffunction-sections', '-D__3DS__']
+common_linker_flags = system_libraries + ['-specs=3dsx.specs', '-g'] + common_arch_flags # + ['-Wl,-Map,$(notdir $*.map)']
 
 [binaries]
 c = devkitarm / 'bin/arm-none-eabi-gcc'
