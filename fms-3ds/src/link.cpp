@@ -1,6 +1,7 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 #include "link.h"
 
-namespace FMS::Link {
+namespace fms::Link {
 	u8* buffer;
 	u8 connectionId = 0;
 	Handle recvFinishedEvent = 0;
@@ -239,7 +240,7 @@ namespace FMS::Link {
 		iruExit();
 		free(buffer);
 		std::cout << ":: Saving capture file" << std::endl;
-		pcap->flush();
+		//pcap->flush();
 		delete pcap;
 	}
 

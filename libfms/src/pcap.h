@@ -1,37 +1,23 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 #ifndef PCAP_H
 #define PCAP_H
 
-#include "3ds.h"
 #include <iostream>
 #include <fstream>
 #include <vector>
 #include <algorithm>
 #include <cstring>
 
-namespace FMS {
+#include "core/types.h"
+
+namespace fms {
 	/**
 	* Single record in the Pcap file
 	* \see https://wiki.wireshark.org/Development/LibpcapFileFormat
 	*/
 	struct PcapRecord {
-		PcapRecord(u32 length, void * data) {
-			// Time in millis
-			u64 currTime = osGetTime();
-			this->ts_sec = currTime / 1000;
-			// ts_usec has to be in microseconds
-			this->ts_usec = currTime % 1000 * 1000;
-			
-			this->orig_length = length;
-			this->data = std::malloc(length);
-			if (this->data != nullptr) std::memcpy(this->data, data, length);
-		}
-		PcapRecord(u32 ts_sec, u32 ts_usec, u32 length, void* data) {
-			this->ts_sec = ts_sec;
-			this->ts_usec = ts_usec;
-			this->orig_length = length;
-			this->data = std::malloc(length);
-			if (this->data != nullptr) std::memcpy(this->data, data, length);
-		}
+		PcapRecord(u32 length, void * data);
+		PcapRecord(u32 ts_sec, u32 ts_usec, u32 length, void* data);
 		u32 ts_sec;
 		u32 ts_usec;
 		u32 orig_length;

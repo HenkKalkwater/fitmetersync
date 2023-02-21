@@ -1,0 +1,6 @@
+/**
+ * \namespace fms::platform::ctru
+ * \brief 3DS (CTR) platform abstraction implementation using libctru.
+ *
+ * \see https://libctru.devkitpro.org/
+ */

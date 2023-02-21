@@ -1,9 +1,11 @@
 #ifndef CRC_H
 #define CRC_H
 
-#include <3ds.h>
+#include <core/types.h>
 
-namespace FMS {
+#include <cstddef>
+
+namespace fms {
 	const int GP = 0x107;
 	const int DI = 0x7;
 
@@ -11,8 +13,8 @@ namespace FMS {
 	extern bool made_table;
 
 	void init_crc8();
-	void crc8(u8 *crc, u8 m);
-	u8 crc8_arr(u8* m, size_t size);
+	void crc8(u8 &crc, u8 m);
+	u8 crc8_arr(const u8 *m, std::size_t size, u8 start = 0);
 }
 
 #endif //CRC_H
