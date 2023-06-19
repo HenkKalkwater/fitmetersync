@@ -1,4 +1,10 @@
 # Fit Meter Sync 
+
+> **Warning**
+> This software is not ready for use yet. It is a non-functional prototype at most.
+> I am not responsible for data loss, bricked 3DSs, dead SD cards, your cat being lost,
+> or a thermonuclear crisis.
+
 This tool syncs your 3DS step meter with the Fit Meter via the IR port of the 3DS.
 
 # Contributing
@@ -11,29 +17,65 @@ Suggestions about the protocol are welcome, as well as pull requests as long as 
 * A Wii U Fit Meter
 
 # Current features
-* Recording infrared signals and saving them to pcap (Wireshark-compatible) files.  
-    - TODO: add a wireshark protocol definition  
-* An attempt to emulate a Wii U, which fails for some reason still unknown  
+* [x] Recording infrared signals and saving them to pcap (Wireshark-compatible) files.
+* [ ] TODO: add a wireshark protocol definition
+* [ ] An attempt to emulate a Wii U, which fails for some reason still unknown
 
 # Roadmap
 
 ## Before v0.1 <-- We are here
-* Document parts of the protocol
-    * Current roadblocK: I can't sniff IR data and resend them. The timing seems to be important and it is kinda hard with 1 IrDA receiver.  
-        * I've ordered two IrDA USB dongles, once I get them, I'll resume working on this project.  
-            * The ones I ordered are quite crappy (maybe was expected from the price) and don't really work that well. Even if I wanted to use them, I'll have to learn how to manipulate these things from Windows XP, because that's the only operating system they work in.  
+* [x] Document the outer protocol
+* [ ] Document the inner protocol
+	* [ ] Document a possible inner-inner protocol
 
 ## v0.1
-* Emulate a wii fit meter or wii u (so they'll sync data)
+* [ ] Emulate a wii fit meter or wii u (so they'll sync data)
 
 ## v0.2
-* Sync the steps from the Fit Meter to the 3DS
+* [ ] Sync the steps from the Fit Meter to the 3DS
 
 ## v1.0
-* Make a nice, simple GUI
+* [ ] Make a nice, simple GUI
 
 ## v2.0
-* Sync the rest of the fricking ~~owl~~ data
+* [ ] Sync the rest of the fricking ~~owl~~ data
+
+# Directory overview
+```
+├── fms-3ds            # Project directory for the old 3DS application
+│   └── src
+├── fms-cli            # Project directory for the command-line based Linux application
+│   └── src
+├── libfms             # Cross-platform library for implementing the protocol and platform abstractions
+│   └── src
+│       ├── core       # Code for data types used in other folders
+│       ├── platform   # Platform abstractions for threads, IrDA adapters etc
+│       └── protocol   # Protocol implementations
+├── LICENSES           # Text of used licenses
+├── misc               # Other code
+└── testing            # Dumps of communications between Wii U and Fit Meter
+```
+
+# Building
+This projct uses [Meson](https://mesonbuild.com/), because Makefiles are a pain in the behind to use and write.
+
+## Build steps (not cross-compiling)
+
+```sh
+meson setup $builddir # Substitute $builddir with wherever you want to output your build files to
+cd $builddir
+meson compile
+```
+
+## Build steps (Cross-compiling for the 3DS)
+1. Make sure [devkitpro](https://devkitpro.org/) is installed with the packages for compiling to a 3DS.
+2. Edit 3ds_cross.txt and make sure that `devkitpro` is set to the path of your devkitpro installation
+3. Invoke meson as follows:
+  ```sh
+  meson setup $builddir --cross-file=3ds_cross.txt # Substitute $builddir with wherever you want to output your build files to
+  cd $builddir
+  meson compile
+  ```
 
 # Thanks to:
 * The creator of the new-hblauncher for the Makefile
