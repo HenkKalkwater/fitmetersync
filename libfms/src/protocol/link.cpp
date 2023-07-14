@@ -73,6 +73,31 @@ u8 LinkPacket::checksum() const {
 	return m_checksum;
 }
 
+std::vector<u8> LinkPacket::serializePacket() const {
+	bool largePacket = m_payload.size() > PACKET_LARGE_THRESHOLD;
+	std::vector<u8> result(largePacket ? m_payload.size() + 5 : m_payload.size() + 4);
+
+	std::array<u8, 4> header = {LinkPacket::MAGIC, 0, 0, 0};
+	header[1] = m_connectionId;
+	LinkPacket::FlagsAndSize *flagsAndSize = reinterpret_cast<LinkPacket::FlagsAndSize *>(&header[2]);
+	flagsAndSize->large = largePacket;
+	flagsAndSize->setup = m_setupFlag;
+
+	auto outPos = result.begin();
+	if (largePacket) {
+		header[3] = m_payload.size();
+		outPos = std::copy(header.begin(), header.end(), outPos);
+	} else {
+		flagsAndSize->size = m_payload.size();
+		outPos = std::copy(header.begin(), header.end(), outPos);
+	}
+	outPos = std::copy(m_payload.begin(), m_payload.end(), outPos);
+
+	u8 crc = m_checksum;
+	*(outPos++) = crc;
+	return result;
+}
+
 // LinkConnection
 
 LinkConnection::LinkConnection(platform::IRAdapter& adapter)
@@ -204,7 +229,6 @@ void LinkConnection::sendPacket(const fms::protocol::LinkPacket& packet) {
 	u8 crc = packet.checksum();
 	m_adapter.send(&crc, &crc + 1);
 }
-
 
 
 }

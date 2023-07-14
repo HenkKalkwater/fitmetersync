@@ -25,13 +25,11 @@ namespace fms {
 		if (this->data != nullptr) std::memcpy(this->data, data, length);
 	}
 
-	void Pcap::addRecord(PcapRecord record) {
-		this->records.push_back(record);
+	Pcap::~Pcap() {
+		ofile.close();
 	}
 
-	void Pcap::flush() {
-		//std::ofstream ofile("foo.pcap", std::ios::binary);
-		
+	void Pcap::writeHeader() {
 		//Write the header
 		ofile.write((char *)&this->magic, sizeof(u32));
 		ofile.write((char *)&this->versionMajor, sizeof(u16));
@@ -40,17 +38,17 @@ namespace fms {
 		ofile.write((char *)&this->sigfigs, sizeof(u32));
 		ofile.write((char *)&this->snaplen, sizeof(u32));
 		ofile.write((char *)&this->network, sizeof(u32));
+		ofile.flush();
+	}
 
-		for (auto it = this->records.begin(); it < records.end(); it++) {
-			ofile.write((char *) &it->ts_sec, sizeof(u32));
-			ofile.write((char *) &it->ts_usec, sizeof(u32));
-			ofile.write((char *) &it->orig_length, sizeof(u32));
+	void Pcap::addRecord(PcapRecord record) {
+		ofile.write((char *) &record.ts_sec, sizeof(u32));
+		ofile.write((char *) &record.ts_usec, sizeof(u32));
+		ofile.write((char *) &record.orig_length, sizeof(u32));
 
-			u32 incl_length = std::min(it->orig_length, this->snaplen);
-			ofile.write((char *) &incl_length, sizeof(u32));
-			ofile.write((char *) it->data, incl_length);
-		}
-
-		ofile.close();
-	} 
+		u32 incl_length = std::min(record.orig_length, this->snaplen);
+		ofile.write((char *) &incl_length, sizeof(u32));
+		ofile.write((char *) record.data, incl_length);
+		ofile.flush();
+	}
 }

@@ -13,9 +13,9 @@
 
 namespace fms {
 namespace cli {
+namespace po = boost::program_options;
 
-
-int command_retrieve(common_options &common_options) {
+int command_retrieve(common_options &common_options, po::variables_map &/*specific_options*/) {
 	using namespace platform;
 	IRAdapter &adapter = common_options.adapter;
 	fms::protocol::LinkConnection con(adapter);

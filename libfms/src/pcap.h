@@ -32,14 +32,16 @@ namespace fms {
 	class Pcap {
 	public:
 		Pcap(std::string filename) : ofile(filename, std::ios::binary) {}
+		virtual ~Pcap();
+		/**
+		 * Writes the header to a file. Call this before calling addRecord(), otherwise you will end up
+		 * with an invalid file.
+		 */
+		void writeHeader();
 		/**
 		* Adds a record to the list.
 		*/
 		void addRecord(PcapRecord record);
-		/**
-		* Write everything that's caputered to the file.
-		*/
-		void flush();
 
 		bool isOpen() { return ofile.is_open(); }
 		u32 getSnaplen() { return snaplen; }
@@ -81,7 +83,6 @@ namespace fms {
 		*/
 		const u32 network = 147; // RESERVED FOR PRIVATE USE
 		
-		std::vector<PcapRecord> records;
 		std::ofstream ofile;
 	};
 }

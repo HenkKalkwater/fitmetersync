@@ -18,6 +18,8 @@ class IRAdapter;
 }
 namespace cli {
 
+namespace po = boost::program_options;
+
 /**
  * Options that will be passed to all classes
  */
@@ -35,7 +37,9 @@ struct command_description {
 	 * \param common_options The common command line options
 	 * \returns An exit code
 	 */
-	std::function<int(common_options &common_options)> func;
+	std::function<int(common_options &common_options, po::variables_map &specific_options)> func;
+
+	po::options_description options;
 };
 
 /**
@@ -54,9 +58,9 @@ void print_hex(It begin, It end) {
 }
 
 // list of commands
-int command_capture(common_options &common_options);
-int command_list_adapters(common_options &common_options);
-int command_retrieve(common_options &common_options);
+int command_capture(common_options &common_options, po::variables_map &specific_options);
+int command_list_adapters(common_options &common_options, po::variables_map &specific_options);
+int command_retrieve(common_options &common_options, po::variables_map &specific_options);
 
 extern std::array<command_description, 3> COMMANDS;
 

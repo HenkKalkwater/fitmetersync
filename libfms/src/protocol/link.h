@@ -106,6 +106,13 @@ public:
 	u8 checksum() const;
 
 	/**
+	 * \brief Copies the packet wire representation into a vector
+	 * \note If the packet is created in the code, you may need to call recalculateFields() before
+	 *       getting a correct output.
+	 */
+	std::vector<u8> serializePacket() const;
+
+	/**
 	 * \brief Sets the payload
 	 * \param payloadBegin Begin iterator of the payload data
 	 * \param payloadEnd End iterator of the payload data
@@ -170,11 +177,12 @@ public:
 	template <class It>
 	std::size_t receive(It start, It end);
 
-private:
 	/**
-	 * \brief Tries to receive a packet
+	 * \brief Tries to receive a packet, but retains all
+	 * metadata of the encapsulating packet.
 	 */
 	LinkPacket receivePacket();
+private:
 	void sendPacket(const LinkPacket &packet);
 
 	platform::IRAdapter &m_adapter;
