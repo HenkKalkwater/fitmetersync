@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: GPL-3.0-or-later
 
+#include <core/debug.h>
 #include <core/types.h>
 #include <platform/iradapter.h>
 #include <platform/iradaptermanager.h>
@@ -11,6 +12,8 @@
 #include <array>
 #include <iomanip>
 #include <iostream>
+#include <stdexcept>
+#include <string>
 #include <utility>
 
 #include <boost/program_options.hpp>
@@ -19,6 +22,7 @@
 
 using namespace fms;
 using namespace fms::platform;
+using namespace std::string_literals;
 
 namespace po = boost::program_options;
 
@@ -46,6 +50,24 @@ void print_usage(const char *name, po::options_description desc) {
 	std::cout << desc << std::endl;
 };
 
+IRAdapter find_adapter(std::string name) {
+	IRAdapterManager &manager = IRAdapterManager::getInstance();
+	auto adapters = manager.list();
+	if (adapters.empty()) {
+		throw new std::runtime_error("No available IrDA adapters");
+	}
+	if (name.empty()) {
+		return adapters.at(0);
+	}
+
+	for (auto it = adapters.begin(); it != adapters.end(); it++) {
+		if (it->name() == name) {
+			return *it;
+		}
+	}
+	throw new std::runtime_error("No adapter with the given name '"s + name + "'"s);
+}
+
 } // NS cli
 } // NS fms
 
@@ -53,7 +75,8 @@ int main(int argc, char** argv) {
 	namespace cli = fms::cli;
 	po::options_description desc("General options");
 	desc.add_options()
-		("help", "produces this help message");
+		("help", "produces this help message")
+		("irda-adapter", po::value<std::string>(),  "name of an irda adapter, defaults to first found, see 'list-adapters'");
 
 	po::variables_map vm;
 	po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -70,14 +93,26 @@ int main(int argc, char** argv) {
 		return -1;
 	}
 
-	// Check which command to execute
-	for (auto it = cli::COMMANDS.cbegin(); it != cli::COMMANDS.cend(); it++) {
-		if (it->name == argv[1]) {
-			return it->func();
-		}
-	}
+	try {
+		auto adapter_opt = vm["irda-adapter"s];
+		IRAdapter adapter = cli::find_adapter(adapter_opt.empty() ? "" : adapter_opt.as<std::string>());
 
-	std::cout << "No such command '" << argv[1] << "'" << std::endl;
-	cli::print_usage(argv[0], desc);
-	return -1;
+		cli::common_options options = {
+			adapter
+		};
+
+		// Check which command to execute
+		for (auto it = cli::COMMANDS.cbegin(); it != cli::COMMANDS.cend(); it++) {
+			if (it->name == argv[1]) {
+				return it->func(options);
+			}
+		}
+
+		// Print usage and exit if command is not known
+		std::cout << "No such command '" << argv[1] << "'" << std::endl;
+		cli::print_usage(argv[0], desc);
+		return -1;
+	} catch(std::exception *e) {
+		FMS_ERR("Uncaught exception: %s", e->what());
+	}
 }

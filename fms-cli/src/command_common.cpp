@@ -21,7 +21,7 @@ std::array<command_description, 3> COMMANDS = {{
 	{"retrieve",      "retrieves and parses data from the fit meter (development purposes only)", &command_retrieve}
 }};
 
-int command_list_adapters() {
+int command_list_adapters(common_options &common_options) {
 	IRAdapterManager& adapterMgr = IRAdapterManager::getInstance();
 	std::cout << "List of adapters:" << std::endl;
 

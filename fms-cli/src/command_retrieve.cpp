@@ -15,10 +15,9 @@ namespace fms {
 namespace cli {
 
 
-int command_retrieve() {
+int command_retrieve(common_options &common_options) {
 	using namespace platform;
-	IRAdapterManager& adapterMgr = IRAdapterManager::getInstance();
-	IRAdapter adapter = adapterMgr.list()[0];
+	IRAdapter &adapter = common_options.adapter;
 	fms::protocol::LinkConnection con(adapter);
 	con.accept();
 

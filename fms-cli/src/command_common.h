@@ -12,21 +12,31 @@
 #include <string>
 
 namespace fms {
+namespace platform {
+// Forward declarations
+class IRAdapter;
+}
 namespace cli {
+
+/**
+ * Options that will be passed to all classes
+ */
+struct common_options {
+	platform::IRAdapter &adapter;
+};
 
 struct command_description {
 	/// Name of the command
 	std::string name;
 	/// Help description for the command
 	std::string description;
-	/// The function to call when this command is invoked
-	std::function<int()> func;
+	/**
+	 * \brief The function to call when this command is invoked
+	 * \param common_options The common command line options
+	 * \returns An exit code
+	 */
+	std::function<int(common_options &common_options)> func;
 };
-
-struct common_options {
-
-};
-
 
 /**
  * Prints the data from the iterator formatted as hex to standard out.
@@ -44,9 +54,9 @@ void print_hex(It begin, It end) {
 }
 
 // list of commands
-int command_capture();
-int command_list_adapters();
-int command_retrieve();
+int command_capture(common_options &common_options);
+int command_list_adapters(common_options &common_options);
+int command_retrieve(common_options &common_options);
 
 extern std::array<command_description, 3> COMMANDS;
 
