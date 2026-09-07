@@ -423,6 +423,15 @@ impl<Transport: Read + Write> Irc<Transport> {
         Err(IrcError::NoConnectionFound)
     }
 
+    pub fn close_connection(&mut self) -> IrcResult<()> {
+        if self.connection_id == 0 {
+            return Err(IrcError::ConnectionClosed);
+        }
+        self.send_internal(PacketHeader::CloseConnection, &mut [])?;
+        self.connection_id = 0;
+        Ok(())
+    }
+
     /// Sends data to the IR port.
     ///
     /// # Params

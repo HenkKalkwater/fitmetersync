@@ -48,5 +48,20 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         println!("Wii Fit U meter received packet: {:#?}:\n{:#?}", packet2, &recv_buf);
     }
 
+    {
+        let cmd = [0xF3];
+        let mut cmd_slice = [IoSlice::new(&cmd)];
+        irc.send_payload(&mut cmd_slice, 0x07)?;
+        println!("Wii Fit U meter sent ack");
+    }
+
+    {
+        let mut recv_slice = [IoSliceMut::new(&mut recv_buf)];
+        let packet3 = irc.receive(&mut recv_slice)?;
+        println!("Wii Fit U meter received packet: {:#?}:\n{:#?}", packet3, &recv_buf);
+    }
+
+    irc.close_connection()?;
+
     Ok(())
 }
