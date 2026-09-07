@@ -212,7 +212,8 @@ impl<Transport: Read + Write> Irc<Transport> {
     /// * `Err(IrcError::ConnectionClosed)` if the connection was closed by the peer
     /// * `Err(IrcError::IoError)` if the underlying transport layer returned an error
     pub fn receive(&mut self, bufs: &mut [IoSliceMut]) -> IrcResult<PacketHeader> {
-        match self.receive_internal(bufs) {
+        let result = self.receive_internal(bufs);
+        match result {
             Ok(header @ PacketHeader::Payload { .. }) => Ok(header),
             Ok(PacketHeader::CloseConnection) => {
                 self.connection_id = 0;
@@ -408,6 +409,7 @@ impl<Transport: Read + Write> Irc<Transport> {
             match self.receive_internal(&mut []) {
                 Ok(PacketHeader::CreateConnection(_, _, connection_id)) => {
                     self.connection_id = connection_id;
+                    self.send_internal(PacketHeader::AcceptConnection, &mut [])?;
                     return Ok(())
                 },
                 Ok(_) => return Err(IrcError::ProtocolError),
