@@ -213,6 +213,7 @@ impl<Transport: Read + Write> Irc<Transport> {
     /// * `Err(IrcError::IoError)` if the underlying transport layer returned an error
     pub fn receive(&mut self, bufs: &mut [IoSliceMut]) -> IrcResult<PacketHeader> {
         let result = self.receive_internal(bufs);
+        debug_println!("receive: {:?}", result);
         match result {
             Ok(header @ PacketHeader::Payload { .. }) => Ok(header),
             Ok(PacketHeader::CloseConnection) => {
@@ -264,6 +265,7 @@ impl<Transport: Read + Write> Irc<Transport> {
             self.transport.read_exact(self.receive_buffer[first_read..end + 1].as_mut())?;
             let crc = irc_crc(&self.receive_buffer[..end]);
             if crc != self.receive_buffer[end] {
+                debug_println!("CRC check failed");
                 return Err(IrcError::CorruptPacket);
             }
 
@@ -295,11 +297,17 @@ impl<Transport: Read + Write> Irc<Transport> {
             let response_length = u16::from_be_bytes(receive_length_bytes);
 
             let mut to_read=  payload_length as usize - PACKET_HEADER_RECEIVE_SIZE;
+            let total_read = to_read;
+            debug_println!("response_length: {response_length}");
             let mut internal_bufs = bufs;
+            // let internal_bufs_details = internal_bufs.iter().map(|buf| buf.len()).collect::<Vec<_>>();
+            // debug_println!("internal_bufs_details: {:?}", internal_bufs_details);
             while to_read > 0 {
                 let read = (&mut self.transport).take(to_read as u64).read_vectored(internal_bufs)?;
+                //debug_println!("read: {read} (to_read: {to_read}/{total_read})");
 
                 if read == 0 {
+                    debug_println!("Unexpected EOF (to_read: {to_read}/{total_read})");
                     return Err(IrcError::CorruptPacket);
                 }
 
@@ -315,6 +323,7 @@ impl<Transport: Read + Write> Irc<Transport> {
             self.transport.read_exact(&mut expected_crc)?;
 
             if expected_crc[0] != crc {
+                debug_println!("CRC check failed");
                 return Err(IrcError::CorruptPacket);
             }
 
@@ -410,6 +419,7 @@ impl<Transport: Read + Write> Irc<Transport> {
                 Ok(PacketHeader::CreateConnection(_, _, connection_id)) => {
                     self.connection_id = connection_id;
                     self.send_internal(PacketHeader::AcceptConnection, &mut [])?;
+                    debug_println!("Connection accepted");
                     return Ok(())
                 },
                 Ok(_) => return Err(IrcError::ProtocolError),
@@ -423,12 +433,13 @@ impl<Transport: Read + Write> Irc<Transport> {
         Err(IrcError::NoConnectionFound)
     }
 
-    pub fn close_connection(&mut self) -> IrcResult<()> {
+    pub fn disconnect(&mut self) -> IrcResult<()> {
         if self.connection_id == 0 {
             return Err(IrcError::ConnectionClosed);
         }
         self.send_internal(PacketHeader::CloseConnection, &mut [])?;
         self.connection_id = 0;
+        debug_println!("Disconnected");
         Ok(())
     }
 
@@ -439,7 +450,15 @@ impl<Transport: Read + Write> Irc<Transport> {
     /// * response_length: The length of the response to expect
     pub fn send_payload<'a>(&mut self, payload: &'a mut [IoSlice<'a>], response_length: u16) -> IrcResult<()> {
         let payload_length = payload.iter().map(|e| e.len()).sum::<usize>() as u16;
-        self.send(PacketHeader::Payload{ response_length, payload_length }, payload)
+
+        let irc_response_length = response_length
+            + PACKET_TRAILER_SIZE as u16
+            + PACKET_HEADER_RECEIVE_SIZE as u16
+            + if response_length > PAYLOAD_THRESHOLD as u16 { PACKET_HEADER_SIZE_LARGE } else { PACKET_HEADER_SIZE_SMALL } as u16;
+
+        debug_println!("send: with response length: {}", irc_response_length);
+        let header = PacketHeader::Payload{ response_length: irc_response_length, payload_length };
+        self.send(header, payload)
     }
 }
 

@@ -1,7 +1,7 @@
 use std::io::{IoSlice, IoSliceMut};
 use std::time::Duration;
 use serialport::{available_ports, new as new_port, SerialPortBuilder, DataBits, FlowControl, SerialPort};
-use fms_irc::irc::Irc;
+use fms_samu::FitMeterSync;
 
 fn choose_port() -> Option<Box<dyn SerialPort>> {
     for p in available_ports().ok()? {
@@ -9,7 +9,7 @@ fn choose_port() -> Option<Box<dyn SerialPort>> {
         if let Ok(port) = new_port(p.port_name, 115_200)
             .data_bits(DataBits::Eight)
             .flow_control(FlowControl::None)
-            .timeout(Duration::from_secs(10))
+            .timeout(Duration::from_secs(5))
             .open() {
             return Some(port);
         }
@@ -21,47 +21,23 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Hello, world!");
 
     let port = choose_port().expect("No serial port available");
-    let mut irc = Irc::new(port);
+    let mut con = FitMeterSync::new(port);
 
     println!("Connected to IR adapter, prepare Wii Fit U meter to send");
 
-    irc.wait_connection()?;
+    con.connect()?;
     println!("Wii Fit U meter connected");
 
-    let mut recv_buf = [0u8; 32];
+    // let identity = con.get_identity()?;
+    // println!("Wii Fit U meter identity: {:?}", identity);
 
-    {
-        let mut recv_slice = [IoSliceMut::new(&mut recv_buf)];
-        let packet1 = irc.receive(&mut recv_slice)?;
-        println!("Wii Fit U meter received packet: {:#?}:\n{:#?}", packet1, &recv_buf);
-    }
+    // let time = con.get_time()?;
+    // println!("Wii Fit U meter time: {}", time);
 
-    let cmd = [0xF4, 0x01, 0x00, 0x00];
-    let mut cmd_slice = [IoSlice::new(&cmd)];
+    let steps = con.get_steps()?;
+    println!("Wii Fit U meter steps: {:?}", steps);
 
-    irc.send_payload(&mut cmd_slice, 0x0A)?;
-    println!("Wii Fit U meter sent command");
-
-    {
-        let mut recv_slice = [IoSliceMut::new(&mut recv_buf)];
-        let packet2 = irc.receive(&mut recv_slice)?;
-        println!("Wii Fit U meter received packet: {:#?}:\n{:#?}", packet2, &recv_buf);
-    }
-
-    {
-        let cmd = [0xF3];
-        let mut cmd_slice = [IoSlice::new(&cmd)];
-        irc.send_payload(&mut cmd_slice, 0x07)?;
-        println!("Wii Fit U meter sent ack");
-    }
-
-    {
-        let mut recv_slice = [IoSliceMut::new(&mut recv_buf)];
-        let packet3 = irc.receive(&mut recv_slice)?;
-        println!("Wii Fit U meter received packet: {:#?}:\n{:#?}", packet3, &recv_buf);
-    }
-
-    irc.close_connection()?;
+    con.disconnect()?;
 
     Ok(())
 }

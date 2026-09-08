@@ -57,3 +57,60 @@ impl From<std::io::Error> for IrcError {
         }
     }
 }
+
+#[derive(Debug)]
+pub enum IrcuError {
+    ConnectionClosed,
+    AlreadyConnected,
+    NoConnectionFound,
+    ProtocolError,
+    Timeout,
+    BufferOverflow,
+    TransportError(std::io::Error)
+}
+
+impl Display for IrcuError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            IrcuError::ConnectionClosed => write!(f, "Connection closed"),
+            IrcuError::TransportError(err) => write!(f, "Transport error: {}", err),
+            IrcuError::AlreadyConnected => write!(f, "Already connected"),
+            IrcuError::NoConnectionFound => write!(f, "No connection found"),
+            IrcuError::ProtocolError => write!(f, "Protocol error"),
+            IrcuError::BufferOverflow => write!(f, "Buffer overflow"),
+            IrcuError::Timeout => write!(f, "Timeout"),
+        }
+    }
+}
+
+impl Error for IrcuError {}
+
+impl From<IrcError> for IrcuError {
+    fn from(error: IrcError) -> IrcuError {
+        match error {
+            IrcError::ConnectionClosed => IrcuError::ConnectionClosed,
+            IrcError::AlreadyConnected => IrcuError::AlreadyConnected,
+            IrcError::NoConnectionFound => IrcuError::NoConnectionFound,
+            IrcError::ProtocolError => IrcuError::ProtocolError,
+            IrcError::CorruptPacket => IrcuError::ProtocolError,
+            IrcError::Timeout => IrcuError::Timeout,
+            IrcError::BufferOverflow => IrcuError::BufferOverflow,
+            IrcError::TransportError(e) => IrcuError::TransportError(e)
+        }
+    }
+}
+
+impl From<IrcuError> for IrcError {
+    fn from(error: IrcuError) -> IrcError {
+        match error {
+            IrcuError::ConnectionClosed => IrcError::ConnectionClosed,
+            IrcuError::AlreadyConnected => IrcError::AlreadyConnected,
+            IrcuError::NoConnectionFound => IrcError::NoConnectionFound,
+            IrcuError::ProtocolError => IrcError::ProtocolError,
+            IrcuError::Timeout => IrcError::Timeout,
+            IrcuError::BufferOverflow => IrcError::BufferOverflow,
+            IrcuError::TransportError(e) => IrcError::TransportError(e)
+        }
+    }
+}
+pub type IrcuResult<T> = Result<T, IrcuError>;

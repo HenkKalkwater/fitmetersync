@@ -5,4 +5,5 @@ edition = "2024"
 
 [dependencies]
 fms-irc= { path = "../irc" }
+fms-samu = { path = "../samu" }
 serialport = "4.10.0"
