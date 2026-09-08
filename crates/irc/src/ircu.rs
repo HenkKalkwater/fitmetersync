@@ -1,3 +1,4 @@
+use std::cmp::min;
 use std::io::{IoSlice, IoSliceMut, Read, Write};
 use crate::error::{IrcError, IrcResult, IrcuError, IrcuResult};
 use crate::irc::Irc;
@@ -5,6 +6,7 @@ use crate::irc::Irc;
 
 struct ConnectionId(u8);
 const ANY_CONNECTION: ConnectionId = ConnectionId(0);
+const MAX_PAYLOAD_LENGTH: u16 = 255;
 
 #[repr(u8)]
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -287,8 +289,9 @@ impl<Transport: Read + Write> IrcuMaster<Transport> {
     pub fn receive(&mut self, mut payload_bufs: &mut [IoSliceMut], command: u8, address: u16, response_size: u16) -> IrcuResult<()> {
         let command_struct = Command { mode: CommandMode::Receive, command, address };
 
+        let mut bytes_left = response_size;
         let mut next_packet = IrcuPacket::Send(command_struct);
-        let mut next_response_size = response_size;
+        let mut next_response_size = min(bytes_left, MAX_PAYLOAD_LENGTH);
         let mut expected_replies = next_packet.packet_type().expected_replies();
 
         debug_println!("RX {command:02X} {address:04X}");
@@ -302,36 +305,45 @@ impl<Transport: Read + Write> IrcuMaster<Transport> {
                 }
                 retries -= 1;
             }
+
+            next_response_size = min(bytes_left, MAX_PAYLOAD_LENGTH);
+
             self.common.send_packet(next_packet, &mut [], next_response_size)?;
             let received_packet = self.common.receive_packet(payload_bufs, expected_replies);
-            (next_packet, expected_replies, next_response_size, error) = match received_packet {
+            (next_packet, expected_replies, bytes_left, error) = match received_packet {
                 Ok((IrcuPacket::WaitAck, size))      => {
+                    debug_println!("Received wait ACK");
                     IoSliceMut::advance_slices(&mut payload_bufs, size);
                     (
                         IrcuPacket::Ack,
                         IrcuPacketType::Ack.expected_replies(),
-                        next_response_size,
+                        bytes_left - size as u16,
                         None
                     )
                 },
                 Ok((IrcuPacket::WaitAckFinal, size)) => {
+                    debug_println!("Received wait final ACK");
                     IoSliceMut::advance_slices(&mut payload_bufs, size);
                     (
                         IrcuPacket::AckFinal,
                         IrcuPacketType::AckFinal.expected_replies(),
-                        0,
+                        bytes_left - size as u16,
                         None
                     )
                 },
                 Ok((IrcuPacket::AckFinal, _))     => {
+                    debug_println!("Received final ACK");
                     return Ok(())
                 },
-                Ok((IrcuPacket::Retransmit, _))   => (
-                    next_packet,
-                    expected_replies,
-                    next_response_size,
-                    Some(IrcuError::Timeout)
-                ),
+                Ok((IrcuPacket::Retransmit, _))   => {
+                    debug_println!("Retransmission requested");
+                    (
+                        next_packet,
+                        expected_replies,
+                        next_response_size,
+                        Some(IrcuError::Timeout)
+                    )
+                },
                 Ok(p)               => {
                     debug_println!("Strange packet: {p:?}");
                     return Err(IrcuError::ProtocolError)
