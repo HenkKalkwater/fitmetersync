@@ -1,9 +1,4 @@
-use std::error::Error;
-use std::fmt::{Display, Formatter};
 use std::io::{IoSlice, IoSliceMut, Read, Write};
-use std::ops::Deref;
-use std::thread::sleep;
-use std::time::Duration;
 use crate::error::{IrcError, IrcResult, IrcuError, IrcuResult};
 use crate::irc::Irc;
 
@@ -98,7 +93,7 @@ impl IrcuPacketType {
         }
     }
 
-    fn response_to(&self) -> &'static[IrcuPacketType] {
+    fn expected_replies(&self) -> &'static[IrcuPacketType] {
         match self {
             IrcuPacketType::WaitAck => &[IrcuPacketType::Retransmit, IrcuPacketType::Ack],
             IrcuPacketType::WaitAckFinal => &[IrcuPacketType::Retransmit, IrcuPacketType::AckFinal],
@@ -170,7 +165,7 @@ impl IrcuPacket {
             0xF1 /* WaitAckFinal */ => Some(1),
             0xF2 /* Ack          */ => Some(1),
             0xF3 /* AckFinal     */ => Some(1),
-            0xF4 /* Send         */ => Some(3),
+            0xF4 /* Send         */ => Some(4),
             0xF5 /* Retransmit   */ => Some(1),
             _ => None,
         }
@@ -192,6 +187,11 @@ impl IrcuPacket {
             _ => {}
         }
     }
+
+    pub fn packet_type(&self) -> IrcuPacketType {
+        (*self).into()
+    }
+
 }
 
 impl From<IrcuPacket> for u8 {
@@ -222,37 +222,33 @@ impl<Transport: Read + Write> IrcuCommon<Transport> {
         }
     }
 
-    fn receive_packet(&mut self, payload_bufs: &mut [IoSliceMut], request: IrcuPacketType) -> IrcResult<IrcuPacket> {
+    fn receive_packet(&mut self, payload_bufs: &mut [IoSliceMut], expected_replies: &[IrcuPacketType]) -> IrcResult<(IrcuPacket, usize)> {
         let mut header = [0u8; MAX_HEADER_LENGTH];
         let header_slice = IoSliceMut::new(&mut header[0..1]);
         let mut slices = Vec::with_capacity(1 + payload_bufs.len());
         slices.push(header_slice);
         slices.extend(payload_bufs.iter_mut().map(|b| IoSliceMut::new(&mut **b)));
 
-        let irc_result = match self.irc.receive(&mut slices) {
+        let irc_packet = match self.irc.receive(&mut slices) {
             Err(IrcError::BufferOverflow) => Err(IrcError::ProtocolError),
             result => result,
-        };
-        debug_println!("Received packet {:?}", irc_result);
-        irc_result?;
-
+        }?;
         let ircu_packet = IrcuPacket::from_buf(&header)?;
-        debug_println!("Received packet {:?}", ircu_packet);
-        if !request.response_to().contains(&ircu_packet.into()) {
-            debug_println!("Received packet {:?} does not match expected replies {:?} for {:?}", ircu_packet, request.response_to(), request);
+
+        if !expected_replies.contains(&ircu_packet.into()) {
+            debug_println!("Received packet {:?} does not match expected replies {:?}", ircu_packet, expected_replies);
             return Err(IrcError::ProtocolError);
         }
 
-        Ok(ircu_packet)
+        Ok((ircu_packet, irc_packet.payload_length as usize - ircu_packet.header_length()))
     }
 
     fn send_packet(&mut self, header: IrcuPacket, payload: &mut [IoSlice], response_length: u16) -> IrcuResult<()> {
-        debug_println!("send: {header:?}");
         let mut header_buf = [0u8; MAX_HEADER_LENGTH];
         header.to_buf(&mut header_buf);
 
         let mut io_slices = Vec::with_capacity(1 + payload.len());
-        io_slices.push(IoSlice::new(&header_buf));
+        io_slices.push(IoSlice::new(&header_buf[..header.header_length()]));
         io_slices.extend(payload.iter());
         self.irc.send_payload(&mut io_slices, response_length + 1)?;
 
@@ -278,7 +274,7 @@ impl<Transport: Read + Write> IrcuMaster<Transport> {
     pub fn connect(&mut self) -> IrcuResult<()> {
         self.common.irc.wait_connection()?;
         debug_println!("IRC connected");
-        self.common.receive_packet(&mut [], IrcuPacketType::AckFinal)?;
+        self.common.receive_packet(&mut [], &IrcuPacketType::AckFinal.expected_replies())?;
         debug_println!("IRCU connected");
         Ok(())
     }
@@ -288,50 +284,66 @@ impl<Transport: Read + Write> IrcuMaster<Transport> {
         Ok(())
     }
 
-    pub fn receive(&mut self, payload_bufs: &mut [IoSliceMut], command: u8, address: u16, response_size: u16) -> IrcuResult<()> {
+    pub fn receive(&mut self, mut payload_bufs: &mut [IoSliceMut], command: u8, address: u16, response_size: u16) -> IrcuResult<()> {
         let command_struct = Command { mode: CommandMode::Receive, command, address };
 
-        let mut last_packet = IrcuPacket::Send(command_struct);
-        let mut last_response_size = response_size;
+        let mut next_packet = IrcuPacket::Send(command_struct);
+        let mut next_response_size = response_size;
+        let mut expected_replies = next_packet.packet_type().expected_replies();
 
-        self.common.send_packet(last_packet, &mut [], response_size)?;
         debug_println!("RX {command:02X} {address:04X}");
 
         let mut retries = RETRIES;
+        let mut error = None;
         loop {
-            match self.common.receive_packet(payload_bufs, IrcuPacketType::Send) {
-                Ok(IrcuPacket::WaitAck)      => {
-                    last_packet = IrcuPacket::Ack;
-                    self.common.send_packet(last_packet, &mut [], response_size)?;
-                    retries = RETRIES;
-                    continue
+            if let Some(e) = error {
+                if retries == 0 {
+                    return Err(e)
+                }
+                retries -= 1;
+            }
+            self.common.send_packet(next_packet, &mut [], next_response_size)?;
+            let received_packet = self.common.receive_packet(payload_bufs, expected_replies);
+            (next_packet, expected_replies, next_response_size, error) = match received_packet {
+                Ok((IrcuPacket::WaitAck, size))      => {
+                    IoSliceMut::advance_slices(&mut payload_bufs, size);
+                    (
+                        IrcuPacket::Ack,
+                        IrcuPacketType::Ack.expected_replies(),
+                        next_response_size,
+                        None
+                    )
                 },
-                Ok(IrcuPacket::WaitAckFinal) => {
-                    last_packet = IrcuPacket::AckFinal;
-                    last_response_size = 0;
-                    sleep(Duration::from_millis(250));
-                    self.common.send_packet(last_packet, &mut [], 0)?;
-                    // retries = RETRIES;
+                Ok((IrcuPacket::WaitAckFinal, size)) => {
+                    IoSliceMut::advance_slices(&mut payload_bufs, size);
+                    (
+                        IrcuPacket::AckFinal,
+                        IrcuPacketType::AckFinal.expected_replies(),
+                        0,
+                        None
+                    )
+                },
+                Ok((IrcuPacket::AckFinal, _))     => {
                     return Ok(())
                 },
-                Ok(IrcuPacket::AckFinal)     => return Ok(()),
-                Ok(IrcuPacket::Retransmit)   => {
-                    if retries == 0 {
-                        return Err(IrcuError::Timeout)
-                    }
-                    self.common.send_packet(last_packet, &mut [], last_response_size)?;
-                    retries -= 1;
-                    continue
+                Ok((IrcuPacket::Retransmit, _))   => (
+                    next_packet,
+                    expected_replies,
+                    next_response_size,
+                    Some(IrcuError::Timeout)
+                ),
+                Ok(p)               => {
+                    debug_println!("Strange packet: {p:?}");
+                    return Err(IrcuError::ProtocolError)
                 },
-                Ok(_)                        => return Err(IrcuError::ProtocolError),
-                e @ Err(IrcError::CorruptPacket | IrcError::Timeout) => {
-                    self.common.send_packet(IrcuPacket::Retransmit, &mut [], last_response_size)?;
+                Err(e @ IrcError::CorruptPacket | e @ IrcError::Timeout) => {
                     debug_println!("Error: {e:?}");
-                    if retries == 0 {
-                        return Err(IrcuError::Timeout)
-                    }
-                    retries -= 1;
-                    continue
+                    (
+                        IrcuPacket::Retransmit,
+                        expected_replies,
+                        next_response_size,
+                        Some(e.into())
+                    )
                 },
                 Err(e) => {
                     return Err(e.into())
