@@ -1,7 +1,8 @@
 pub mod date;
 pub mod compression;
 
-use std::io::{IoSliceMut, Read, Write};
+use std::io::{IoSliceMut};
+use futures_io::{AsyncRead, AsyncWrite};
 use fms_irc::error::{IrcResult, IrcuError, IrcuResult};
 use fms_irc::ircu::IrcuMaster;
 use crate::compression::{decompress_altitude, decompress_u16, decompress_u8};
@@ -33,7 +34,7 @@ impl Identity {
     }
 }
 
-pub struct FitMeterSync<Transport: Read + Write> {
+pub struct FitMeterSync<Transport: AsyncRead + AsyncWrite + Unpin> {
     con: IrcuMaster<Transport>
 }
 
@@ -81,7 +82,7 @@ impl From<ReceiveCommand> for u8 {
     }
 }
 
-impl<Transport: Read + Write> FitMeterSync<Transport> {
+impl<Transport: AsyncRead + AsyncWrite + Unpin> FitMeterSync<Transport> {
     pub fn new(transport: Transport) -> Self {
         FitMeterSync {
             con: IrcuMaster::new(transport)
@@ -89,13 +90,13 @@ impl<Transport: Read + Write> FitMeterSync<Transport> {
     }
 
     /// Connects to the Fit Meter
-    pub fn connect(&mut self) -> IrcuResult<()> {
-        self.con.connect()
+    pub async fn connect(&mut self) -> IrcuResult<()> {
+        self.con.connect().await
     }
 
     /// Closes the connection to the Fit Meter
-    pub fn disconnect(&mut self) -> IrcuResult<()> {
-        self.con.disconnect()
+    pub async fn disconnect(&mut self) -> IrcuResult<()> {
+        self.con.disconnect().await
     }
 
     /// Receives data from the Fit Meter
@@ -106,12 +107,12 @@ impl<Transport: Read + Write> FitMeterSync<Transport> {
     /// * `response_size`: The size of the response to expect from the Fit Meter. Must be less than
     ///                     or equal to the length of `recv_buf`. If not set, will use the maximum
     ///                     based on `command`.
-    fn receive(&mut self, command: ReceiveCommand, mut recv_buf: &mut [u8], response_size: Option<u16>) -> IrcuResult<()> {
+    async fn receive(&mut self, command: ReceiveCommand, mut recv_buf: &mut [u8], response_size: Option<u16>) -> IrcuResult<()> {
         let response_size = response_size.unwrap_or(command.response_size() as u16);
         debug_assert!(response_size <= recv_buf.len() as u16);
         let mut recv_slice = [IoSliceMut::new(&mut recv_buf)];
 
-        self.con.receive(&mut recv_slice, command.into(), command.address(), response_size)?;
+        self.con.receive(&mut recv_slice, command.into(), command.address(), response_size).await?;
 
         for x in recv_buf[..response_size as usize].iter_mut() {
             *x ^= 0xAAu8
@@ -120,51 +121,51 @@ impl<Transport: Read + Write> FitMeterSync<Transport> {
         Ok(())
     }
 
-    pub fn get_identity(&mut self) -> IrcuResult<Identity> {
+    pub async fn get_identity(&mut self) -> IrcuResult<Identity> {
         let mut identity_buf = [0u8; ReceiveCommand::Identity.response_size()];
-        self.receive(ReceiveCommand::Identity, &mut identity_buf, None)?;
+        self.receive(ReceiveCommand::Identity, &mut identity_buf, None).await?;
         let identity = Identity::from_bytes(&identity_buf)?;
         Ok(identity)
     }
 
-    pub fn get_time(&mut self) -> IrcuResult<DateTime> {
+    pub async fn get_time(&mut self) -> IrcuResult<DateTime> {
         let mut time_buf = [0u8; ReceiveCommand::Time.response_size()];
-        self.receive(ReceiveCommand::Time, &mut time_buf, None)?;
+        self.receive(ReceiveCommand::Time, &mut time_buf, None).await?;
 
         DateTime::from_bytes(&time_buf).ok_or(IrcuError::ProtocolError)
     }
 
-    pub fn get_mets(&mut self) -> IrcResult<Vec<Option<u8>>> {
+    pub async fn get_mets(&mut self) -> IrcResult<Vec<Option<u8>>> {
         let mut mets_buf = [0u8; ReceiveCommand::Mets.address() as usize];
-        self.receive(ReceiveCommand::Mets, &mut mets_buf, None)?;
+        self.receive(ReceiveCommand::Mets, &mut mets_buf, None).await?;
         let mets = decompress_u8(&mets_buf);
         Ok(mets)
     }
 
-    pub fn get_altitude(&mut self) -> IrcResult<Vec<i32>> {
+    pub async fn get_altitude(&mut self) -> IrcResult<Vec<i32>> {
         let mut altitude_buf = [0u8; ReceiveCommand::Altitude.address() as usize];
-        self.receive(ReceiveCommand::Altitude, &mut altitude_buf, None)?;
+        self.receive(ReceiveCommand::Altitude, &mut altitude_buf, None).await?;
         let altitude = decompress_altitude(&altitude_buf);
         Ok(altitude)
     }
 
-    pub fn get_activity_tag(&mut self) -> IrcResult<Vec<Option<u8>>> {
+    pub async fn get_activity_tag(&mut self) -> IrcResult<Vec<Option<u8>>> {
         let mut activity_buf = [0u8; ReceiveCommand::ActivityTag.address() as usize];
-        self.receive(ReceiveCommand::ActivityTag, &mut activity_buf, None)?;
+        self.receive(ReceiveCommand::ActivityTag, &mut activity_buf, None).await?;
         let activity = decompress_u8(&activity_buf);
         Ok(activity)
     }
 
-    pub fn get_kcals(&mut self) -> IrcResult<Vec<Option<u16>>> {
+    pub async fn get_kcals(&mut self) -> IrcResult<Vec<Option<u16>>> {
         let mut kcals_buf = [0u8; ReceiveCommand::Kcals.response_size()];
-        self.receive(ReceiveCommand::Kcals, &mut kcals_buf, None)?;
+        self.receive(ReceiveCommand::Kcals, &mut kcals_buf, None).await?;
         let kcals = decompress_u16(&kcals_buf);
         Ok(kcals)
     }
 
-    pub fn get_steps(&mut self) -> IrcResult<Vec<Option<u16>>> {
+    pub async fn get_steps(&mut self) -> IrcResult<Vec<Option<u16>>> {
         let mut steps_buf = [0u8; ReceiveCommand::Steps.response_size()];
-        self.receive(ReceiveCommand::Steps, &mut steps_buf, None)?;
+        self.receive(ReceiveCommand::Steps, &mut steps_buf, None).await?;
         let steps = decompress_u16(&steps_buf);
         Ok(steps)
     }

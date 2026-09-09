@@ -13,3 +13,4 @@ mod crc;
 pub mod irc;
 pub mod ircu;
 pub mod error;
+pub mod async_util;

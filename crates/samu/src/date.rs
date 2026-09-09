@@ -30,8 +30,8 @@ impl DateTime {
         }
     }
 
-    pub fn year(&self) -> i32 {
-        self.year as i32 + 2000
+    pub fn year(&self) -> u32 {
+        self.year as u32 + 2000
     }
 
     pub fn month(&self) -> u8 {

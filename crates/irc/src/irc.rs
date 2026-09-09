@@ -1,8 +1,13 @@
-use crate::crc::{irc_crc, irc_crc_ioslice_continue};
+use crate::crc::{irc_crc, irc_crc_continue, irc_crc_ioslice_continue};
 use crate::error::{IrcError, IrcResult};
-use std::io::{Cursor, IoSlice, IoSliceMut, Read, Write};
+use std::io::{IoSlice, IoSliceMut, Read, Write};
+use std::pin::Pin;
+use futures_io::{AsyncRead, AsyncWrite};
+use futures_lite::AsyncReadExt;
+use futures_lite::io::{Cursor, };
+use crate::async_util::AsyncWriteVectoredExt;
 
-pub struct Irc<Transport: Read + Write> {
+pub struct Irc<Transport: AsyncRead + AsyncWrite + Unpin> {
     transport: Transport,
     connection_id: u8,
     receive_buffer: Box<[u8; 0x20]>,
@@ -168,7 +173,9 @@ impl<'a> PacketHeader {
     }
 }
 
-impl<Transport: Read + Write> Irc<Transport> {
+impl<Transport: AsyncRead + AsyncWrite + Unpin> Irc<Transport>
+    where for<'b> &'b mut Transport: AsyncRead
+{
 
     /// Create a new IRC connection with the underlying transport
     pub fn new(transport: Transport) -> Self {
@@ -219,8 +226,8 @@ impl<Transport: Read + Write> Irc<Transport> {
     /// * `Err(IrcError::NotConnected)` if no connection is yet established
     /// * `Err(IrcError::ConnectionClosed)` if the connection was closed by the peer
     /// * `Err(IrcError::IoError)` if the underlying transport layer returned an error
-    pub fn receive(&mut self, bufs: &mut [IoSliceMut]) -> IrcResult<PacketBody> {
-        let result = self.receive_internal(bufs);
+    pub async fn receive<'a>(&mut self, bufs: &mut [IoSliceMut<'a>]) -> IrcResult<PacketBody> {
+        let result = self.receive_internal(bufs).await;
         match result {
             Ok(PacketHeader::Payload(body)) => Ok(body),
             Ok(PacketHeader::CloseConnection) => {
@@ -239,16 +246,16 @@ impl<Transport: Read + Write> Irc<Transport> {
     /// * `Err(IrcError::ProtocolError)` if a packet with an unexpected connection id was received
     /// * `Err(IrcError::CorruptPacket)` if the packet is corrupt (e.g. invalid magic number, crc mismatch)
     /// * `Err(IrcError::IoError)` if the underlying transport layer returned an error
-    fn receive_internal(&mut self, bufs: &mut [IoSliceMut]) -> IrcResult<PacketHeader> {
+    async fn receive_internal<'a>(&mut self, bufs: &mut [IoSliceMut<'a>]) -> IrcResult<PacketHeader> {
         let first_read = 4;
 
         if self.synced {
             self.receive_buffer.fill(0);
-            self.transport.read_exact(self.receive_buffer[0..first_read].as_mut())?;
+            self.transport.read_exact(self.receive_buffer[0..first_read].as_mut()).await?;
         } else {
             // Sync will fill in the first 4 bytes of the receive buffer
             debug_println!("Syncing to MAGIC…");
-            self.sync(first_read)?;
+            self.sync(first_read).await?;
             debug_println!("Synced to MAGIC: {:02X}", self.receive_buffer[0]);
         }
 
@@ -278,7 +285,7 @@ impl<Transport: Read + Write> Irc<Transport> {
             let end = next + payload_length as usize;
 
             // CRC check
-            self.transport.read_exact(self.receive_buffer[first_read..end + 1].as_mut())?;
+            self.transport.read_exact(self.receive_buffer[first_read..end + 1].as_mut()).await?;
             let crc = irc_crc(&self.receive_buffer[..end]);
             if crc != self.receive_buffer[end] {
                 debug_println!("CRC check failed");
@@ -303,7 +310,7 @@ impl<Transport: Read + Write> Irc<Transport> {
                 _ => Err(IrcError::CorruptPacket)
             }
         } else {
-            self.transport.read_exact(self.receive_buffer[first_read..next + PACKET_HEADER_RECEIVE_SIZE].as_mut())?;
+            self.transport.read_exact(self.receive_buffer[first_read..next + PACKET_HEADER_RECEIVE_SIZE].as_mut()).await?;
 
             let mut receive_length_bytes: [u8; 2] = [0; 2];
             receive_length_bytes.copy_from_slice(&self.receive_buffer[next..next + PACKET_HEADER_RECEIVE_SIZE]);
@@ -314,25 +321,33 @@ impl<Transport: Read + Write> Irc<Transport> {
 
             let mut to_read=  payload_length as usize - PACKET_HEADER_RECEIVE_SIZE;
             let total_read = to_read;
-            let mut internal_bufs = bufs;
-            while to_read > 0 {
-                let read = (&mut self.transport).take(to_read as u64).read_vectored(internal_bufs)?;
 
-                if read == 0 {
-                    debug_println!("Unexpected EOF (to_read: {to_read}/{total_read})");
-                    return Err(IrcError::CorruptPacket);
+            for buf in bufs.iter_mut() {
+                if to_read == 0 {
+                    break;
                 }
 
-                let read_slices = Self::current_read_slices(internal_bufs, read);
-                crc = irc_crc_ioslice_continue(read_slices.as_slice(), crc);
+                if buf.is_empty() {
+                    continue;
+                }
 
-                IoSliceMut::advance_slices(&mut internal_bufs, read);
-                to_read = to_read.saturating_sub(read);
+                let chunk_to_read = std::cmp::min(buf.len(), to_read);
+                let chunk = &mut buf[..chunk_to_read];
+                self.transport.read_exact(chunk).await?;
+
+                crc = irc_crc_continue(chunk, crc);
+                buf.advance(chunk_to_read);
+                to_read = to_read.saturating_sub(chunk_to_read);
+            }
+
+            if to_read > 0 {
+                debug_println!("Unexpected EOF (to_read: {to_read}/{total_read})");
+                return Err(IrcError::CorruptPacket);
             }
 
             // CRC check
             let mut expected_crc = [0u8];
-            self.transport.read_exact(&mut expected_crc)?;
+            self.transport.read_exact(&mut expected_crc).await?;
 
             if expected_crc[0] != crc {
                 debug_println!("CRC check failed");
@@ -348,25 +363,7 @@ impl<Transport: Read + Write> Irc<Transport> {
         }
     }
 
-    /// Constructs a temporary list of immutable IoSlice views from mutable IoSlices, with the
-    /// given `byte_length`.
-    fn current_read_slices<'a>(slices: &'a [IoSliceMut<'a>], mut byte_length: usize) -> Vec<IoSlice<'a>> {
-        let mut result = Vec::new();
-        for slice in slices {
-            if byte_length == 0 {
-                break;
-            }
-            let min_len = std::cmp::min(slice.len(), byte_length);
-
-            let view = &slice[..min_len];
-            result.push(IoSlice::new(view));
-
-            byte_length -= min_len;
-        }
-        result
-    }
-
-    fn sync(&mut self, transport_buffer_length: usize) -> IrcResult<()> {
+    async fn sync(&mut self, transport_buffer_length: usize) -> IrcResult<()> {
         let marker_length = 2;
         debug_assert!(transport_buffer_length >= marker_length);
 
@@ -380,12 +377,12 @@ impl<Transport: Read + Write> Irc<Transport> {
         let mut buf = [0u8; 1];
 
         while tries > 0 {
-            cursor.read_exact(&mut buf)?;
+            cursor.read_exact(&mut buf).await?;
             if buf[0] == PACKET_MAGIC {
-                cursor.read_exact(&mut buf)?;
+                cursor.read_exact(&mut buf).await?;
                 if buf[0] == self.connection_id {
                     self.receive_buffer[0..marker_length].copy_from_slice(&[PACKET_MAGIC, self.connection_id]);
-                    cursor.read_exact(&mut self.receive_buffer[marker_length..transport_buffer_length])?;
+                    cursor.read_exact(&mut self.receive_buffer[marker_length..transport_buffer_length]).await?;
                     return Ok(())
                 }
             }
@@ -404,11 +401,11 @@ impl<Transport: Read + Write> Irc<Transport> {
     /// * `Ok(())`: The packet was sent successfully
     /// * `Err(IrcError::ConnectionClosed)`: The connection is closed or not opened yet
     /// * `Err(IrcError::IoError)`: The underlying transport encountered an error
-    fn send(&mut self, header: PacketHeader, payload_bufs: &mut [IoSlice]) -> IrcResult<()> {
+    async fn send(&mut self, header: PacketHeader, payload_bufs: &mut [IoSlice<'_>]) -> IrcResult<()> {
         match (self.connection_id, &header) {
-            (0, PacketHeader::CreateConnection(_, _, _)) =>  self.send_internal(header, payload_bufs),
+            (0, PacketHeader::CreateConnection(_, _, _)) =>  self.send_internal(header, payload_bufs).await,
             (0, _) => Err(IrcError::ConnectionClosed),
-            (_, _) => self.send_internal(header, payload_bufs)
+            (_, _) => self.send_internal(header, payload_bufs).await
         }
     }
 
@@ -417,7 +414,7 @@ impl<Transport: Read + Write> Irc<Transport> {
     /// # Arguments:
     /// * `header`: The packet header to send
     /// * `payload_bufs`: The payload buffers to send (only use if `header` is a `PacketHeader::Payload`)
-    fn send_internal(&mut self, header: PacketHeader, payload_bufs: &mut [IoSlice]) -> IrcResult<()> {
+    async fn send_internal<'a>(&mut self, header: PacketHeader, payload_bufs: &mut [IoSlice<'a>]) -> IrcResult<()> {
         if let PacketHeader::Payload {..} = header {
             debug_assert!(!payload_bufs.is_empty());
         } else {
@@ -440,7 +437,7 @@ impl<Transport: Read + Write> Irc<Transport> {
         slices.extend(payload_bufs.iter());
         slices.push(trailer_slice);
 
-        self.transport.write_all_vectored(&mut slices)?;
+        self.transport.write_all_vectored(&mut slices).await?;
         Ok(())
     }
 
@@ -451,16 +448,16 @@ impl<Transport: Read + Write> Irc<Transport> {
     /// * `Err(IrcError::ProtocolError)` if an unexpected packet was received
     /// * `Err(IrcError::NoConnectionFound)` if no connection was found
     /// * Other errors if applicable
-    pub fn wait_connection(&mut self) -> IrcResult<()> {
+    pub async fn wait_connection(&mut self) -> IrcResult<()> {
         if self.connection_id > 0 {
             return Err(IrcError::AlreadyConnected)
         }
 
         for _ in 0..RETRY_COUNT {
-            match self.receive_internal(&mut []) {
+            match self.receive_internal(&mut []).await {
                 Ok(PacketHeader::CreateConnection(_, _, connection_id)) => {
                     self.connection_id = connection_id;
-                    self.send_internal(PacketHeader::AcceptConnection, &mut [])?;
+                    self.send_internal(PacketHeader::AcceptConnection, &mut []).await?;
                     debug_println!("Connection accepted: {connection_id}");
                     return Ok(())
                 },
@@ -475,11 +472,11 @@ impl<Transport: Read + Write> Irc<Transport> {
         Err(IrcError::NoConnectionFound)
     }
 
-    pub fn disconnect(&mut self) -> IrcResult<()> {
+    pub async fn disconnect(&mut self) -> IrcResult<()> {
         if self.connection_id == 0 {
             return Err(IrcError::ConnectionClosed);
         }
-        self.send_internal(PacketHeader::CloseConnection, &mut [])?;
+        self.send_internal(PacketHeader::CloseConnection, &mut []).await?;
         self.connection_id = 0;
         debug_println!("Disconnected");
         Ok(())
@@ -490,7 +487,7 @@ impl<Transport: Read + Write> Irc<Transport> {
     /// # Params
     /// * payload: The payload to send
     /// * response_length: The length of the response to expect
-    pub fn send_payload<'a>(&mut self, payload: &'a mut [IoSlice<'a>], response_length: u16) -> IrcResult<()> {
+    pub async fn send_payload<'a>(&mut self, payload: &'a mut [IoSlice<'a>], response_length: u16) -> IrcResult<()> {
         let payload_length = payload.iter().map(|e| e.len()).sum::<usize>() as u16;
 
         let irc_response_length = response_length
@@ -499,24 +496,24 @@ impl<Transport: Read + Write> Irc<Transport> {
             + if response_length > PAYLOAD_THRESHOLD as u16 { PACKET_HEADER_SIZE_LARGE } else { PACKET_HEADER_SIZE_SMALL } as u16;
 
         let header = PacketHeader::Payload (PacketBody { response_length: irc_response_length, payload_length });
-        self.send(header, payload)
+        self.send(header, payload).await
     }
 }
 
 
 #[cfg(test)]
 mod tests {
+    use futures_lite::future::block_on;
     use super::*;
-    use std::io::Cursor;
 
-    fn test_send_packet(packet: PacketHeader, payload: &mut [IoSlice], connection_id: u8, expected_bytes: &[u8]) {
+    fn test_send_packet(packet: PacketHeader, payload: &mut [IoSlice<'_>], connection_id: u8, expected_bytes: &[u8]) {
         let mut packet_bytes = Vec::with_capacity(expected_bytes.len());
 
         {
             let c = Cursor::new(&mut packet_bytes);
             let mut irc = Irc::new(c);
             irc.connection_id = connection_id;
-            irc.send(packet, payload).unwrap();
+            block_on(async { irc.send(packet, payload).await }).unwrap();
         }
 
         assert_eq!(packet_bytes.as_slice(), expected_bytes);
@@ -533,9 +530,9 @@ mod tests {
             irc.connection_id = connection_id;
 
             if internal {
-                irc.receive_internal(&mut payload_ioslice)?
+                block_on(async { irc.receive_internal(&mut payload_ioslice).await })?
             } else {
-                PacketHeader::Payload(irc.receive(&mut payload_ioslice)?)
+                PacketHeader::Payload(block_on(async { irc.receive(&mut payload_ioslice).await })?)
             }
         };
 

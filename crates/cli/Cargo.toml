@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-fms-irc= { path = "../irc" }
-fms-samu = { path = "../samu" }
-serialport = "4.10.0"
+clap = "4.6.6"
+fms-samu = { workspace = true }
+serialport-stream = "0.3.2"
+futures-lite = "2.6.1"

@@ -1,5 +1,6 @@
 use std::cmp::min;
-use std::io::{IoSlice, IoSliceMut, Read, Write};
+use std::io::{IoSlice, IoSliceMut};
+use futures_lite::io::{AsyncRead, AsyncWrite };
 use crate::error::{IrcError, IrcResult, IrcuError, IrcuResult};
 use crate::irc::Irc;
 
@@ -209,13 +210,13 @@ impl From<IrcuPacket> for u8 {
     }
 }
 
-struct IrcuCommon<Transport: Read + Write> {
+struct IrcuCommon<Transport: AsyncRead + AsyncWrite + Unpin> {
     connection_id: ConnectionId,
     connected: bool,
     irc: Irc<Transport>
 }
 
-impl<Transport: Read + Write> IrcuCommon<Transport> {
+impl<Transport: AsyncRead + AsyncWrite + Unpin> IrcuCommon<Transport> {
     pub fn new(transport: Transport) -> Self {
         IrcuCommon {
             connection_id: ANY_CONNECTION,
@@ -224,14 +225,14 @@ impl<Transport: Read + Write> IrcuCommon<Transport> {
         }
     }
 
-    fn receive_packet(&mut self, payload_bufs: &mut [IoSliceMut], expected_replies: &[IrcuPacketType]) -> IrcResult<(IrcuPacket, usize)> {
+    async fn receive_packet(&mut self, payload_bufs: &mut [IoSliceMut<'_>], expected_replies: &[IrcuPacketType]) -> IrcResult<(IrcuPacket, usize)> {
         let mut header = [0u8; MAX_HEADER_LENGTH];
         let header_slice = IoSliceMut::new(&mut header[0..1]);
         let mut slices = Vec::with_capacity(1 + payload_bufs.len());
         slices.push(header_slice);
         slices.extend(payload_bufs.iter_mut().map(|b| IoSliceMut::new(&mut **b)));
 
-        let irc_packet = match self.irc.receive(&mut slices) {
+        let irc_packet = match self.irc.receive(&mut slices).await {
             Err(IrcError::BufferOverflow) => Err(IrcError::ProtocolError),
             result => result,
         }?;
@@ -245,14 +246,14 @@ impl<Transport: Read + Write> IrcuCommon<Transport> {
         Ok((ircu_packet, irc_packet.payload_length as usize - ircu_packet.header_length()))
     }
 
-    fn send_packet(&mut self, header: IrcuPacket, payload: &mut [IoSlice], response_length: u16) -> IrcuResult<()> {
+    async fn send_packet(&mut self, header: IrcuPacket, payload: &mut [IoSlice<'_>], response_length: u16) -> IrcuResult<()> {
         let mut header_buf = [0u8; MAX_HEADER_LENGTH];
         header.to_buf(&mut header_buf);
 
         let mut io_slices = Vec::with_capacity(1 + payload.len());
         io_slices.push(IoSlice::new(&header_buf[..header.header_length()]));
         io_slices.extend(payload.iter());
-        self.irc.send_payload(&mut io_slices, response_length + 1)?;
+        self.irc.send_payload(&mut io_slices, response_length + 1).await?;
 
         Ok(())
     }
@@ -262,31 +263,31 @@ impl<Transport: Read + Write> IrcuCommon<Transport> {
     }
 }
 
-pub struct IrcuMaster<Transport: Read + Write> {
+pub struct IrcuMaster<Transport: AsyncRead + AsyncWrite + Unpin> {
     common: IrcuCommon<Transport>,
 }
 
-impl<Transport: Read + Write> IrcuMaster<Transport> {
+impl<Transport: AsyncRead + AsyncWrite + Unpin> IrcuMaster<Transport> {
     pub fn new(transport: Transport) -> Self {
         IrcuMaster {
             common: IrcuCommon::new(transport)
         }
     }
 
-    pub fn connect(&mut self) -> IrcuResult<()> {
-        self.common.irc.wait_connection()?;
+    pub async fn connect(&mut self) -> IrcuResult<()> {
+        self.common.irc.wait_connection().await?;
         debug_println!("IRC connected");
-        self.common.receive_packet(&mut [], &IrcuPacketType::AckFinal.expected_replies())?;
+        self.common.receive_packet(&mut [], &IrcuPacketType::AckFinal.expected_replies()).await?;
         debug_println!("IRCU connected");
         Ok(())
     }
 
-    pub fn disconnect(&mut self) -> IrcuResult<()> {
-        self.common.irc.disconnect()?;
+    pub async fn disconnect(&mut self) -> IrcuResult<()> {
+        self.common.irc.disconnect().await?;
         Ok(())
     }
 
-    pub fn receive(&mut self, mut payload_bufs: &mut [IoSliceMut], command: u8, address: u16, response_size: u16) -> IrcuResult<()> {
+    pub async fn receive(&mut self, mut payload_bufs: &mut [IoSliceMut<'_>], command: u8, address: u16, response_size: u16) -> IrcuResult<()> {
         let command_struct = Command { mode: CommandMode::Receive, command, address };
 
         let mut bytes_left = response_size;
@@ -308,8 +309,8 @@ impl<Transport: Read + Write> IrcuMaster<Transport> {
 
             next_response_size = min(bytes_left, MAX_PAYLOAD_LENGTH);
 
-            self.common.send_packet(next_packet, &mut [], next_response_size)?;
-            let received_packet = self.common.receive_packet(payload_bufs, expected_replies);
+            self.common.send_packet(next_packet, &mut [], next_response_size).await?;
+            let received_packet = self.common.receive_packet(payload_bufs, expected_replies).await;
             (next_packet, expected_replies, bytes_left, error) = match received_packet {
                 Ok((IrcuPacket::WaitAck, size))      => {
                     debug_println!("Received wait ACK");
