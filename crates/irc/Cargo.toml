@@ -1,0 +1,8 @@
+[package]
+name = "fms-irc"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+futures-io = { workspace = true }
+futures-lite = { version = "2.6", default-features = false, features = ["std"] }
