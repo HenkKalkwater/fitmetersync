@@ -85,17 +85,6 @@ impl TryFrom<u8> for IrcuPacketType {
 }
 
 impl IrcuPacketType {
-    const fn header_length(&self) -> usize {
-        match self {
-            IrcuPacketType::WaitAck      => 1,
-            IrcuPacketType::WaitAckFinal => 1,
-            IrcuPacketType::Ack          => 1,
-            IrcuPacketType::AckFinal     => 1,
-            IrcuPacketType::Send         => 4,
-            IrcuPacketType::Retransmit   => 1,
-        }
-    }
-
     fn expected_replies(&self) -> &'static[IrcuPacketType] {
         match self {
             IrcuPacketType::WaitAck => &[IrcuPacketType::Retransmit, IrcuPacketType::Ack],
@@ -292,7 +281,7 @@ impl<Transport: AsyncRead + AsyncWrite + Unpin> IrcuMaster<Transport> {
 
         let mut bytes_left = response_size;
         let mut next_packet = IrcuPacket::Send(command_struct);
-        let mut next_response_size = min(bytes_left, MAX_PAYLOAD_LENGTH);
+        let mut next_response_size;
         let mut expected_replies = next_packet.packet_type().expected_replies();
 
         debug_println!("RX {command:02X} {address:04X}");

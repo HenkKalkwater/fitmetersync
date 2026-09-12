@@ -1,7 +1,6 @@
 use crate::crc::{irc_crc, irc_crc_continue, irc_crc_ioslice_continue};
 use crate::error::{IrcError, IrcResult};
-use std::io::{IoSlice, IoSliceMut, Read, Write};
-use std::pin::Pin;
+use std::io::{IoSlice, IoSliceMut};
 use futures_io::{AsyncRead, AsyncWrite};
 use futures_lite::AsyncReadExt;
 use futures_lite::io::{Cursor, };
