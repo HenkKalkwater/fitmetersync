@@ -51,12 +51,12 @@ impl TryFrom<u8> for Target {
 }
 
 #[derive(Debug, Eq, PartialEq)]
-pub struct PacketBody {
+pub struct FrameBody {
     pub response_length: u16,
     pub payload_length: u16
 }
 
-/// Represents the header of an IRC packet.
+/// Represents the header of an IRC frame.
 ///
 /// # Byte layout:
 ///
@@ -64,10 +64,10 @@ pub struct PacketBody {
 /// |----------------|-------------------------------------------|----------------|-----------------------------------------------------------------------------------|
 /// | Magic          | 0x0                                       | 0x1            | Always `A5`?                                                                      |
 /// | ConnectionID   | 0x1                                       | 0x1            | Connection ID, `00` if there is no connection made yet.                           |
-/// | ControlFlag    | 0x2                                       | 0x1            | First bit: 1 if it is a control packet (no payload)                               |
+/// | ControlFlag    | 0x2                                       | 0x1            | First bit: 1 if it is a control frame (no payload)                               |
 /// | LargeFlag      | ^                                         | ^              | Second bit: 1 if the payload size > 0x3F: lower bits of size stored in next byte  |
-/// | PacketSize     | ^                                         | ^              | Remaing 6 bits: length of the `Data` (in bytes) (High bits if `LargeFlag`         |
-/// | PacketSize     | 0x3 (Only present if `LargeFlag` was set) | 0x1            | Low bitsSize (in the case that `LargeFlag`)                                       |
+/// | FrameSize     | ^                                         | ^              | Remaing 6 bits: length of the `Data` (in bytes) (High bits if `LargeFlag`         |
+/// | FrameSize     | 0x3 (Only present if `LargeFlag` was set) | 0x1            | Low bitsSize (in the case that `LargeFlag`)                                       |
 /// | Payload        | 0x3 (0x4 if `LargeFlag` was set)          | Y              | Data (see below)                                                                  |
 /// | Checksum       | 0x3 + Y (0x4 + Y if `LargeFlag` was set)  | 0x1            | 8-bit CRC over all the previous bytes                                             |
 ///
@@ -92,28 +92,28 @@ pub struct PacketBody {
 /// | Payload         | 0x2            | Y              | Data (see below)                                |
 ///
 #[derive(Debug, Eq, PartialEq)]
-pub enum PacketHeader {
-    /// Control packet used to initiate a connection.
+pub enum FrameHeader {
+    /// Control frame used to initiate a connection.
     CreateConnection(Target, Target, u8),
-    /// Control packet used to accept a connection, initiated by a CreateConnection packet.
+    /// Control frame used to accept a connection, initiated by a CreateConnection frame.
     AcceptConnection,
-    /// Control packet used to close the connection.
+    /// Control frame used to close the connection.
     CloseConnection,
-    /// Data packet
-    Payload(PacketBody)
+    /// Data frame
+    Payload(FrameBody)
 }
 
-const PACKET_TYPE_CREATE_CONNECTION : u8 = 0x01;
-const PACKET_TYPE_ACCEPT_CONNECTION : u8 = 0x02;
-const PACKET_TYPE_CLOSE_CONNECTION  : u8 = 0x0F;
+const FRAME_TYPE_CREATE_CONNECTION: u8 = 0x01;
+const FRAME_TYPE_ACCEPT_CONNECTION: u8 = 0x02;
+const FRAME_TYPE_CLOSE_CONNECTION: u8 = 0x0F;
 
-impl<'a> PacketHeader {
+impl<'a> FrameHeader {
     pub fn control_flag(&self) -> bool {
         match self {
-            PacketHeader::CreateConnection(_, _, _) => true,
-            PacketHeader::AcceptConnection          => true,
-            PacketHeader::CloseConnection           => true,
-            PacketHeader::Payload(_)                => false
+            FrameHeader::CreateConnection(_, _, _) => true,
+            FrameHeader::AcceptConnection          => true,
+            FrameHeader::CloseConnection           => true,
+            FrameHeader::Payload(_)                => false
         }
     }
 
@@ -140,30 +140,30 @@ impl<'a> PacketHeader {
 
     pub fn payload_length(&self) -> usize {
         match self {
-            PacketHeader::CreateConnection(_, _, _) => 4,
-            PacketHeader::AcceptConnection          => 1,
-            PacketHeader::CloseConnection           => 1,
-            PacketHeader::Payload (body)            => PACKET_HEADER_RECEIVE_SIZE + body.payload_length as usize
+            FrameHeader::CreateConnection(_, _, _) => 4,
+            FrameHeader::AcceptConnection          => 1,
+            FrameHeader::CloseConnection           => 1,
+            FrameHeader::Payload (body)            => PACKET_HEADER_RECEIVE_SIZE + body.payload_length as usize
         }
     }
 
     pub fn fill_header(&self, header: &mut [u8]) {
         debug_assert!(header.len() >= if self.control_flag() { self.payload_length() } else { PACKET_HEADER_RECEIVE_SIZE });
         match self {
-            PacketHeader::CreateConnection(source_device, target_device, connection_id) => {
-                header[0] = PACKET_TYPE_CREATE_CONNECTION;
+            FrameHeader::CreateConnection(source_device, target_device, connection_id) => {
+                header[0] = FRAME_TYPE_CREATE_CONNECTION;
                 header[1] = (*source_device).into();
                 header[2] = (*target_device).into();
                 header[3] = *connection_id;
 
             },
-            PacketHeader::AcceptConnection => {
-                header[0] = PACKET_TYPE_ACCEPT_CONNECTION;
+            FrameHeader::AcceptConnection => {
+                header[0] = FRAME_TYPE_ACCEPT_CONNECTION;
             },
-            PacketHeader::CloseConnection => {
-                header[0] = PACKET_TYPE_CLOSE_CONNECTION;
+            FrameHeader::CloseConnection => {
+                header[0] = FRAME_TYPE_CLOSE_CONNECTION;
             },
-            PacketHeader::Payload (body) => {
+            FrameHeader::Payload (body) => {
                 let receive_bytes = body.response_length.to_be_bytes();
                 header[..PACKET_HEADER_RECEIVE_SIZE].copy_from_slice(&receive_bytes)
             }
@@ -186,14 +186,14 @@ impl<Transport: AsyncRead + AsyncWrite + Unpin> Irc<Transport>
         }
     }
 
-    /// Copies packet_header to the given buffer. `buffer` must be at least
-    /// `packet_header.header_length()` bytes long.
-    fn fill_header_base(&self, buffer: &mut [u8], packet_header: &PacketHeader) {
-        debug_assert!(buffer.len() >= packet_header.header_length());
+    /// Copies frame_header to the given buffer. `buffer` must be at least
+    /// `frame_header.header_length()` bytes long.
+    fn fill_header_base(&self, buffer: &mut [u8], frame_header: &FrameHeader) {
+        debug_assert!(buffer.len() >= frame_header.header_length());
 
-        let payload_len = packet_header.payload_length();
-        let is_large = packet_header.large_flag();
-        let is_special = packet_header.control_flag();
+        let payload_len = frame_header.payload_length();
+        let is_large = frame_header.large_flag();
+        let is_special = frame_header.control_flag();
 
         buffer[0] = PACKET_MAGIC;
         buffer[1] = self.connection_id;
@@ -209,27 +209,27 @@ impl<Transport: AsyncRead + AsyncWrite + Unpin> Irc<Transport>
             3
         };
 
-        packet_header.fill_header(&mut buffer[next..]);
+        frame_header.fill_header(&mut buffer[next..]);
     }
 
-    /// Receives a packet from the transport layer
+    /// Receives a frame from the transport layer
     ///
     /// # Arguments:
-    /// * `bufs`: The buffers to receive into. Will be filled with the packet payload if a
-    ///           non-control packet is received
+    /// * `bufs`: The buffers to receive into. Will be filled with the frame payload if a
+    ///           non-control frame is received
     ///
     /// # Returns:
-    /// * `Ok(PacketHeader)` The received packet header
-    /// * `Err(IrcError::CorruptPacket)` if the packet is corrupt (e.g. invalid magic number, crc mismatch)
-    /// * `Err(IrcError::ProtocolError)` if an unexpected packet was received
+    /// * `Ok(FrameHeader)` The received frame header
+    /// * `Err(IrcError::CorruptFrame)` if the frame is corrupt (e.g. invalid magic number, crc mismatch)
+    /// * `Err(IrcError::ProtocolError)` if an unexpected frame was received
     /// * `Err(IrcError::NotConnected)` if no connection is yet established
     /// * `Err(IrcError::ConnectionClosed)` if the connection was closed by the peer
     /// * `Err(IrcError::IoError)` if the underlying transport layer returned an error
-    pub async fn receive<'a>(&mut self, bufs: &mut [IoSliceMut<'a>]) -> IrcResult<PacketBody> {
+    pub async fn receive<'a>(&mut self, bufs: &mut [IoSliceMut<'a>]) -> IrcResult<FrameBody> {
         let result = self.receive_internal(bufs).await;
         match result {
-            Ok(PacketHeader::Payload(body)) => Ok(body),
-            Ok(PacketHeader::CloseConnection) => {
+            Ok(FrameHeader::Payload(body)) => Ok(body),
+            Ok(FrameHeader::CloseConnection) => {
                 self.connection_id = 0;
                 Err(IrcError::ConnectionClosed)
             },
@@ -241,11 +241,11 @@ impl<Transport: AsyncRead + AsyncWrite + Unpin> Irc<Transport>
     /// Receiving without any connection handling
     ///
     /// # Returns
-    /// * `Ok(PacketHeader)` on success, with the parsed packet
-    /// * `Err(IrcError::ProtocolError)` if a packet with an unexpected connection id was received
-    /// * `Err(IrcError::CorruptPacket)` if the packet is corrupt (e.g. invalid magic number, crc mismatch)
+    /// * `Ok(FrameHeader)` on success, with the parsed frame
+    /// * `Err(IrcError::ProtocolError)` if a frame with an unexpected connection id was received
+    /// * `Err(IrcError::CorruptFrame)` if the frame is corrupt (e.g. invalid magic number, crc mismatch)
     /// * `Err(IrcError::IoError)` if the underlying transport layer returned an error
-    async fn receive_internal<'a>(&mut self, bufs: &mut [IoSliceMut<'a>]) -> IrcResult<PacketHeader> {
+    async fn receive_internal<'a>(&mut self, bufs: &mut [IoSliceMut<'a>]) -> IrcResult<FrameHeader> {
         let first_read = 4;
 
         if self.synced {
@@ -254,14 +254,14 @@ impl<Transport: AsyncRead + AsyncWrite + Unpin> Irc<Transport>
         } else {
             // Sync will fill in the first 4 bytes of the receive buffer
             debug_println!("Syncing to MAGIC…");
-            self.sync(first_read).await?;
+            self.sync_frame(first_read).await?;
             debug_println!("Synced to MAGIC: {:02X}", self.receive_buffer[0]);
         }
 
         if self.receive_buffer[0] != PACKET_MAGIC {
-            debug_println!("Received packet with invalid magic number: {:2X}", self.receive_buffer[0]);
+            debug_println!("Received frame with invalid magic number: {:2X}", self.receive_buffer[0]);
             self.synced = false;
-            return Err(IrcError::CorruptPacket);
+            return Err(IrcError::CorruptFrame);
         }
 
         if self.receive_buffer[1] != self.connection_id {
@@ -288,25 +288,25 @@ impl<Transport: AsyncRead + AsyncWrite + Unpin> Irc<Transport>
             let crc = irc_crc(&self.receive_buffer[..end]);
             if crc != self.receive_buffer[end] {
                 debug_println!("CRC check failed");
-                return Err(IrcError::CorruptPacket);
+                return Err(IrcError::CorruptFrame);
             }
 
             match self.receive_buffer[next] {
-                PACKET_TYPE_CREATE_CONNECTION => {
+                FRAME_TYPE_CREATE_CONNECTION => {
                     let source = self.receive_buffer[next + 1].try_into()
-                        .map_err(|_| IrcError::CorruptPacket)?;
+                        .map_err(|_| IrcError::CorruptFrame)?;
                     let target = self.receive_buffer[next + 2].try_into()
-                        .map_err(|_| IrcError::CorruptPacket)?;
+                        .map_err(|_| IrcError::CorruptFrame)?;
                     let connection_id = self.receive_buffer[next + 3];
-                    Ok(PacketHeader::CreateConnection(source, target, connection_id))
+                    Ok(FrameHeader::CreateConnection(source, target, connection_id))
                 },
-                PACKET_TYPE_ACCEPT_CONNECTION => {
-                    Ok(PacketHeader::AcceptConnection)
+                FRAME_TYPE_ACCEPT_CONNECTION => {
+                    Ok(FrameHeader::AcceptConnection)
                 },
-                PACKET_TYPE_CLOSE_CONNECTION => {
-                    Ok(PacketHeader::CloseConnection)
+                FRAME_TYPE_CLOSE_CONNECTION => {
+                    Ok(FrameHeader::CloseConnection)
                 },
-                _ => Err(IrcError::CorruptPacket)
+                _ => Err(IrcError::CorruptFrame)
             }
         } else {
             self.transport.read_exact(self.receive_buffer[first_read..next + PACKET_HEADER_RECEIVE_SIZE].as_mut()).await?;
@@ -341,7 +341,7 @@ impl<Transport: AsyncRead + AsyncWrite + Unpin> Irc<Transport>
 
             if to_read > 0 {
                 debug_println!("Unexpected EOF (to_read: {to_read}/{total_read})");
-                return Err(IrcError::CorruptPacket);
+                return Err(IrcError::CorruptFrame);
             }
 
             // CRC check
@@ -350,11 +350,11 @@ impl<Transport: AsyncRead + AsyncWrite + Unpin> Irc<Transport>
 
             if expected_crc[0] != crc {
                 debug_println!("CRC check failed");
-                return Err(IrcError::CorruptPacket);
+                return Err(IrcError::CorruptFrame);
             }
 
-            Ok(PacketHeader::Payload(
-                PacketBody {
+            Ok(FrameHeader::Payload(
+                FrameBody {
                     response_length,
                     payload_length: payload_length - PACKET_HEADER_RECEIVE_SIZE as u16
                 }
@@ -362,7 +362,8 @@ impl<Transport: AsyncRead + AsyncWrite + Unpin> Irc<Transport>
         }
     }
 
-    async fn sync(&mut self, transport_buffer_length: usize) -> IrcResult<()> {
+    /// Try to align with the next frame by seeking to the packet magic.
+    async fn sync_frame(&mut self, transport_buffer_length: usize) -> IrcResult<()> {
         let marker_length = 2;
         debug_assert!(transport_buffer_length >= marker_length);
 
@@ -387,34 +388,34 @@ impl<Transport: AsyncRead + AsyncWrite + Unpin> Irc<Transport>
             }
             tries -= 1;
         }
-        Err(IrcError::CorruptPacket)
+        Err(IrcError::CorruptFrame)
     }
 
-    /// Sends a packet to the IR port
+    /// Sends a frame to the IR port
     ///
     /// # Arguments:
-    /// * `header`: The packet header to send
-    /// * `payload_bufs`: The payload buffers to send (only use if `header` is a `PacketHeader::Payload`)
+    /// * `header`: The frame header to send
+    /// * `payload_bufs`: The payload buffers to send (only use if `header` is a `FrameHeader::Payload`)
     ///
     /// # Returns:
-    /// * `Ok(())`: The packet was sent successfully
+    /// * `Ok(())`: The frame was sent successfully
     /// * `Err(IrcError::ConnectionClosed)`: The connection is closed or not opened yet
     /// * `Err(IrcError::IoError)`: The underlying transport encountered an error
-    async fn send(&mut self, header: PacketHeader, payload_bufs: &mut [IoSlice<'_>]) -> IrcResult<()> {
+    async fn send(&mut self, header: FrameHeader, payload_bufs: &mut [IoSlice<'_>]) -> IrcResult<()> {
         match (self.connection_id, &header) {
-            (0, PacketHeader::CreateConnection(_, _, _)) =>  self.send_internal(header, payload_bufs).await,
+            (0, FrameHeader::CreateConnection(_, _, _)) =>  self.send_internal(header, payload_bufs).await,
             (0, _) => Err(IrcError::ConnectionClosed),
             (_, _) => self.send_internal(header, payload_bufs).await
         }
     }
 
-    /// Sends a packet to the IR port, without
+    /// Sends a frame to the IR port, without
     ///
     /// # Arguments:
-    /// * `header`: The packet header to send
-    /// * `payload_bufs`: The payload buffers to send (only use if `header` is a `PacketHeader::Payload`)
-    async fn send_internal<'a>(&mut self, header: PacketHeader, payload_bufs: &mut [IoSlice<'a>]) -> IrcResult<()> {
-        if let PacketHeader::Payload {..} = header {
+    /// * `header`: The frame header to send
+    /// * `payload_bufs`: The payload buffers to send (only use if `header` is a `FrameHeader::Payload`)
+    async fn send_internal<'a>(&mut self, header: FrameHeader, payload_bufs: &mut [IoSlice<'a>]) -> IrcResult<()> {
+        if let FrameHeader::Payload {..} = header {
             debug_assert!(!payload_bufs.is_empty());
         } else {
             debug_assert!(payload_bufs.is_empty());
@@ -444,7 +445,7 @@ impl<Transport: AsyncRead + AsyncWrite + Unpin> Irc<Transport>
     ///
     /// # Returns
     /// * `Ok(())` if connection was established
-    /// * `Err(IrcError::ProtocolError)` if an unexpected packet was received
+    /// * `Err(IrcError::ProtocolError)` if an unexpected frame was received
     /// * `Err(IrcError::NoConnectionFound)` if no connection was found
     /// * Other errors if applicable
     pub async fn wait_connection(&mut self) -> IrcResult<()> {
@@ -454,14 +455,14 @@ impl<Transport: AsyncRead + AsyncWrite + Unpin> Irc<Transport>
 
         for _ in 0..RETRY_COUNT {
             match self.receive_internal(&mut []).await {
-                Ok(PacketHeader::CreateConnection(_, _, connection_id)) => {
+                Ok(FrameHeader::CreateConnection(_, _, connection_id)) => {
                     self.connection_id = connection_id;
-                    self.send_internal(PacketHeader::AcceptConnection, &mut []).await?;
+                    self.send_internal(FrameHeader::AcceptConnection, &mut []).await?;
                     debug_println!("Connection accepted: {connection_id}");
                     return Ok(())
                 },
                 Ok(_) => return Err(IrcError::ProtocolError),
-                Err(IrcError::CorruptPacket) => continue,
+                Err(IrcError::CorruptFrame) => continue,
                 // Timeouts are expected, so we keep on trying
                 Err(IrcError::Timeout) => continue,
                 Err(error) => return Err(error)
@@ -475,7 +476,7 @@ impl<Transport: AsyncRead + AsyncWrite + Unpin> Irc<Transport>
         if self.connection_id == 0 {
             return Err(IrcError::ConnectionClosed);
         }
-        self.send_internal(PacketHeader::CloseConnection, &mut []).await?;
+        self.send_internal(FrameHeader::CloseConnection, &mut []).await?;
         self.connection_id = 0;
         debug_println!("Disconnected");
         Ok(())
@@ -494,7 +495,7 @@ impl<Transport: AsyncRead + AsyncWrite + Unpin> Irc<Transport>
             + PACKET_HEADER_RECEIVE_SIZE as u16
             + if response_length > PAYLOAD_THRESHOLD as u16 { PACKET_HEADER_SIZE_LARGE } else { PACKET_HEADER_SIZE_SMALL } as u16;
 
-        let header = PacketHeader::Payload (PacketBody { response_length: irc_response_length, payload_length });
+        let header = FrameHeader::Payload (FrameBody { response_length: irc_response_length, payload_length });
         self.send(header, payload).await
     }
 }
@@ -505,25 +506,25 @@ mod tests {
     use futures_lite::future::block_on;
     use super::*;
 
-    fn test_send_packet(packet: PacketHeader, payload: &mut [IoSlice<'_>], connection_id: u8, expected_bytes: &[u8]) {
-        let mut packet_bytes = Vec::with_capacity(expected_bytes.len());
+    fn test_send_frame(frame: FrameHeader, payload: &mut [IoSlice<'_>], connection_id: u8, expected_bytes: &[u8]) {
+        let mut frame_bytes = Vec::with_capacity(expected_bytes.len());
 
         {
-            let c = Cursor::new(&mut packet_bytes);
+            let c = Cursor::new(&mut frame_bytes);
             let mut irc = Irc::new(c);
             irc.connection_id = connection_id;
-            block_on(async { irc.send(packet, payload).await }).unwrap();
+            block_on(async { irc.send(frame, payload).await }).unwrap();
         }
 
-        assert_eq!(packet_bytes.as_slice(), expected_bytes);
+        assert_eq!(frame_bytes.as_slice(), expected_bytes);
     }
 
-    fn receive_packet(packet_bytes: &mut [u8], connection_id: u8, internal: bool) -> Result<(PacketHeader, Box<[u8]>), IrcError> {
+    fn receive_frame(frame_bytes: &mut [u8], connection_id: u8, internal: bool) -> Result<(FrameHeader, Box<[u8]>), IrcError> {
         let mut payload = [0u8; 0x200];
 
-        let packet = {
+        let frame = {
             let mut payload_ioslice = [IoSliceMut::new(&mut payload)];
-            let c = Cursor::new(packet_bytes);
+            let c = Cursor::new(frame_bytes);
 
             let mut irc = Irc::new(c);
             irc.connection_id = connection_id;
@@ -531,87 +532,87 @@ mod tests {
             if internal {
                 block_on(async { irc.receive_internal(&mut payload_ioslice).await })?
             } else {
-                PacketHeader::Payload(block_on(async { irc.receive(&mut payload_ioslice).await })?)
+                FrameHeader::Payload(block_on(async { irc.receive(&mut payload_ioslice).await })?)
             }
         };
 
-        if let PacketHeader::Payload(body) = &packet {
+        if let FrameHeader::Payload(body) = &frame {
             let payload_length = body.payload_length;
-            return Ok((packet, Box::from(&payload[..payload_length as usize])));
+            return Ok((frame, Box::from(&payload[..payload_length as usize])));
         }
 
-        Ok((packet, Box::from([])))
+        Ok((frame, Box::from([])))
     }
 
-    fn test_receive_packet(packet_bytes: &mut [u8], expected_packet: PacketHeader, expected_payload: &[u8], connection_id: u8, ignore_link_state: bool) {
-        let (packet, payload) = receive_packet(packet_bytes, connection_id, ignore_link_state).unwrap();
+    fn test_receive_frame(frame_bytes: &mut [u8], expected_frame: FrameHeader, expected_payload: &[u8], connection_id: u8, ignore_link_state: bool) {
+        let (frame, payload) = receive_frame(frame_bytes, connection_id, ignore_link_state).unwrap();
 
-        assert_eq!(packet, expected_packet);
-        if let PacketHeader::Payload(body) = packet {
+        assert_eq!(frame, expected_frame);
+        if let FrameHeader::Payload(body) = frame {
             assert_eq!(&payload[..body.payload_length as usize], expected_payload);
         }
     }
 
-    fn test_receive_error_packet(packet_bytes: &mut [u8], connection_id: u8, ignore_link_state: bool, expected_error: IrcError) {
-        let packet = receive_packet(packet_bytes, connection_id, ignore_link_state);
-        assert!(packet.is_err());
-        assert_eq!(packet.err().unwrap(), expected_error);
+    fn test_receive_error_frame(frame_bytes: &mut [u8], connection_id: u8, ignore_link_state: bool, expected_error: IrcError) {
+        let frame = receive_frame(frame_bytes, connection_id, ignore_link_state);
+        assert!(frame.is_err());
+        assert_eq!(frame.err().unwrap(), expected_error);
     }
 
     #[test]
-    fn send_connect_packet() {
-        let packet = PacketHeader::CreateConnection(Target::WiiU, Target::FitMeter, 0xF2);
+    fn send_connect_frame() {
+        let frame = FrameHeader::CreateConnection(Target::WiiU, Target::FitMeter, 0xF2);
         let expected_bytes= [0xA5u8, 0x0, 0x84, 0x1, 0x3, 0x4, 0xf2, 0xb6];
-        test_send_packet(packet, &mut [], CONNECTION_ID_ANY, &expected_bytes);
+        test_send_frame(frame, &mut [], CONNECTION_ID_ANY, &expected_bytes);
     }
 
     #[test]
-    fn send_small_payload_packet() {
+    fn send_small_payload_frame() {
         let mut payload = [IoSlice::new(&[0x0F1, 0x59, 0x05, 0xB4, 0x1A, 0xBD, 0x58, 0xF3, 0xCF, 0xAA])];
-        let packet = PacketHeader::Payload(PacketBody { response_length: 0x0010, payload_length: payload[0].len() as u16 });
+        let frame = FrameHeader::Payload(FrameBody { response_length: 0x0010, payload_length: payload[0].len() as u16 });
         let expected_bytes= [0xA5, 0xF2, 0x0C, 0x00, 0x10, 0xF1, 0x59, 0x5, 0xB4, 0x1A, 0xBD, 0x58, 0xF3, 0xCF, 0xAA, 0x70];
-        test_send_packet(packet, &mut payload, 0xF2, &expected_bytes);
+        test_send_frame(frame, &mut payload, 0xF2, &expected_bytes);
     }
 
     #[test]
-    fn receive_connect_packet() {
-        let packet_bytes = &mut [0xA5u8, 0x00, 0x84, 0x01, 0x03, 0x04, 0xEA, 0xFE];
-        let header = PacketHeader::CreateConnection(Target::WiiU, Target::FitMeter, 0xEA);
-        test_receive_packet(packet_bytes, header, &[], 0x00, true);
+    fn receive_connect_frame() {
+        let frame_bytes = &mut [0xA5u8, 0x00, 0x84, 0x01, 0x03, 0x04, 0xEA, 0xFE];
+        let header = FrameHeader::CreateConnection(Target::WiiU, Target::FitMeter, 0xEA);
+        test_receive_frame(frame_bytes, header, &[], 0x00, true);
     }
 
     #[test]
-    fn receive_corrupt_connect_packet() {
-        let packet_bytes = &mut [0xA5u8, 0x00, 0x84, 0x01, 0x03, 0x04, 0xEA, 0xFF];
-        test_receive_error_packet(packet_bytes, 0x00, false, IrcError::CorruptPacket);
+    fn receive_corrupt_connect_frame() {
+        let frame_bytes = &mut [0xA5u8, 0x00, 0x84, 0x01, 0x03, 0x04, 0xEA, 0xFF];
+        test_receive_error_frame(frame_bytes, 0x00, false, IrcError::CorruptFrame);
     }
 
     #[test]
-    fn receive_payload_packet_small() {
-        let packet_bytes = &mut [0xA5, 0x87, 0x03, 0x00, 0x00, 0xF3, 0x09];
-        let header = PacketHeader::Payload(PacketBody { response_length: 0x0000, payload_length: 0x0001 });
-        test_receive_packet(packet_bytes, header, &[0xF3], 0x87, false);
+    fn receive_payload_frame_small() {
+        let frame_bytes = &mut [0xA5, 0x87, 0x03, 0x00, 0x00, 0xF3, 0x09];
+        let header = FrameHeader::Payload(FrameBody { response_length: 0x0000, payload_length: 0x0001 });
+        test_receive_frame(frame_bytes, header, &[0xF3], 0x87, false);
     }
 
     #[test]
-    fn receive_corrupt_payload_packet_small() {
-        let packet_bytes = &mut [0xA5, 0x87, 0x03, 0x00, 0x00, 0xF3, 0x0A];
-        test_receive_error_packet(packet_bytes, 0x87, false, IrcError::CorruptPacket);
+    fn receive_corrupt_payload_frame_small() {
+        let frame_bytes = &mut [0xA5, 0x87, 0x03, 0x00, 0x00, 0xF3, 0x0A];
+        test_receive_error_frame(frame_bytes, 0x87, false, IrcError::CorruptFrame);
     }
 
     #[test]
     fn receive_connection_closed() {
-        let packet_bytes = &mut [0xA5, 0xB1, 0x81, 0x0F, 0xBE];
-        test_receive_error_packet(packet_bytes, 0xB1, false, IrcError::ConnectionClosed);
+        let frame_bytes = &mut [0xA5, 0xB1, 0x81, 0x0F, 0xBE];
+        test_receive_error_frame(frame_bytes, 0xB1, false, IrcError::ConnectionClosed);
     }
 
 
     #[test]
-    fn receive_payload_packet_large() {
+    fn receive_payload_frame_large() {
         let payload_bytes = [ 0xF0, 0xA9, 0xAE, 0xAA, 0xAE, 0xA2, 0xAA, 0xAB, 0xA9, 0xA8, 0xA9, 0xAE, 0xAA, 0xAB, 0xAB, 0xA3, 0xAC, 0xAC, 0xAB, 0xAA, 0xAE, 0xAB, 0xAB, 0xA9, 0xBA, 0xAA, 0xAB, 0xAE, 0xAE, 0xAA, 0xAB, 0xA2, 0xA8, 0xAA, 0xA9, 0xAF, 0xAA, 0xAE, 0xA8, 0xAA, 0xA9, 0xAB, 0xAF, 0xAD, 0xAE, 0xA8, 0xAA, 0xA9, 0xAF, 0xAA, 0xAB, 0xAD, 0xAB, 0xAD, 0xAE, 0xAA, 0xA8, 0xAF, 0xAC, 0xA9, 0xA9, 0xAE, 0xAE, 0xAE, 0xAE, 0xAA, 0xA8, 0xA8, 0xA8, 0xAA, 0xAB, 0xAE, 0xAD, 0xA1, 0xA9, 0xAD, 0xAA, 0xA9, 0xA1, 0xA1, 0xA0, 0xAD, 0xBC, 0xA4, 0xBD, 0xBC, 0xBC, 0xBC, 0xA4, 0xB9, 0xA3, 0xAE, 0xAE, 0xA8, 0xAE, 0xAE, 0xA9, 0xAE, 0xAE, 0xA9, 0xAE, 0xAE, 0xA9, 0xA2, 0xA0, 0xAB, 0xAA, 0xBF, 0xB9, 0xA8, 0xA9, 0xAB, 0xA8, 0xA9, 0xA8, 0xA7, 0xB8, 0xAF, 0xAB, 0xA8, 0xA8, 0xA8, 0xAB, 0xAA, 0xA8, 0xA0, 0xAB, 0xAA, 0xAB, 0xA8, 0xA3, 0xA9, 0xA9, 0xAB, 0xA9, 0xA8, 0xA9, 0xAC, 0xA6, 0xB2, 0xA6, 0xA8, 0xA8, 0xAD, 0xA3, 0xBA, 0xB1, 0xA6, 0xB6, 0xB5, 0xB7, 0xB2, 0xA5, 0xAD, 0xBB, 0xA7, 0xAF, 0xA9, 0xAA, 0xA8, 0xA5, 0xAA, 0xA8, 0xAC, 0xAC, 0xAA, 0xAE, 0xBC, 0xAA, 0xA9, 0xA2, 0xAA, 0xAF, 0xBE, 0xAA, 0xA8, 0xA9, 0xAA, 0xAD, 0xA1, 0xAA, 0xAF, 0xA0, 0xAA, 0xA3, 0xBB, 0xA8, 0xAB, 0xAA, 0xAF, 0xAC, 0xA3, 0xAA, 0xAC, 0xAE, 0xAA, 0xAB, 0xAF, 0xAC, 0xAA, 0xAB, 0xAB, 0xA8, 0xAA, 0xAF, 0xA8, 0xAA, 0xA8, 0xA8, 0xAE, 0xAC, 0xAA, 0xAD, 0xAD, 0xAA, 0xAF, 0xA8, 0xAA, 0xA8, 0xA9, 0xAA, 0xAB, 0xA9, 0xAA, 0xAC, 0xA4, 0xAA, 0xA9, 0xAB, 0xAA, 0xAB, 0xA9, 0xAE, 0xAA, 0xAF, 0xAF, 0xAA, 0xAE, 0xAD, 0xAA, 0xAB, 0xA8, 0xAA, 0xAD, 0xA0, 0xAA, 0xAD, 0xAB, 0xAE, 0xAC, 0xA0, 0xAA, 0xAD, 0xA8, 0xAA, 0xAD, 0xAB, 0xAA, 0xA8, 0xAB, 0xA2, 0xB8, 0xAA, 0xAB, 0xA9, 0xAB, 0xAA, 0xA8, 0xA7, 0xA0, 0xAA, 0xAD, 0xA2, 0xAA, 0xAE, 0xAE, 0xAA, 0xA8, 0xA8, 0xA9, 0xA2, 0xAC, 0xA6, 0xA8, 0xAE, 0xAA, 0xA8, 0xAC, 0xAB, 0xAA, 0xA9, 0xAE, 0xAA, 0xAF, 0xA8, 0xAA, 0xAB, 0xA9, 0xA8, 0xAA, 0xAE, 0xA8, 0xAA, 0xA2, 0xA9, 0xAA, 0xA2, 0xAB, 0xAA, 0xAF, 0xA0, 0xAA, 0xAB, 0xAE, 0xAB, 0xAE, 0xAB, 0xAA, 0xAE, 0xAB, 0xAA, 0xAD, 0xA2, 0xAA, 0xA8, 0xA9, 0xB3, 0xA5, 0xA5, 0xA0, 0xAC, 0xAB, 0xAA, 0xA9, 0xAE, 0xAA, 0xA8, 0xA3, 0xAA, 0xAF, 0xA5, 0xAD, 0xAE, 0xAF, 0xAD, 0xAD, 0xB8, 0xA4, 0xBA, 0xA1, 0xAA, 0xAB, 0xAB, 0xA1, 0xAC, 0xAA, 0xAB, 0xAB, 0xAA, 0xA8, 0xAF, 0xAA, 0xA8, 0xA8, 0xAA, 0xAB, 0xA4, 0xA0, 0xAA, 0xA9, 0xA9, 0xA8, 0xAA, 0xAB, 0xAB, 0xA2, 0xAB, 0xAA, 0xA9, 0xA8, 0xA8, 0xAA, 0xAB, 0xA2, 0xA8, 0xAA, 0xA9, 0xAE, 0xAA, 0xA3, 0xA9, 0xAA, 0xAC, 0xAB, 0xAA, 0xAF, 0xAC, 0xAA, 0xA8, 0xA8, 0xAD, 0xA9, 0xAA, 0xA8, 0xA9, 0xA1, 0xA5, 0xA2, 0x8E, 0xB4, 0xA6, 0xA5, 0xA9, 0xA8, 0xAB, 0xAE, 0xA8, 0xAE, 0xA3, 0xA9, 0xA8, 0xAA, 0xAB, 0xA9, 0xAF, 0xAE, 0xA8, 0xAA, 0xAB, 0xBB, 0xA1, 0xAD, 0xA9, 0xAC, 0xAE, 0xA2, 0xAF, 0xBB, 0xAA, 0xAF, 0xA0, 0xA2, 0xBF, 0xA7, 0xB2, 0xB0, 0xB3, 0xB3, 0xB1, 0xB6, 0x8A, 0xBC, 0xB1, 0xB7, 0xB2, 0xB9, 0xAC, 0xAC, 0xAF, 0xA9, 0xAF, 0xAF, 0xAE, 0xA6, 0xA8, 0xA8, 0xAA, 0xA1, 0xB5, 0x80, 0xBA, 0xA8, 0xBE, 0xA4, 0xA6, 0xA1, 0xAF, 0xA9, 0xAA, 0xAB, 0xA8, 0xAF, 0xAA, 0xAE, 0x79, 0xAA, 0x53, 0xAA, 0xA2, 0xB2, 0xAA, 0x86, 0xAA, 0xA8, 0xAD, 0xAA, 0xA9, 0x85, 0xAA, 0xAB, 0xA9, 0xA9, 0xAA, 0xAF, 0xAC, 0xA6, 0xAA, 0xAF, 0xA5, 0xAA ];
-        let packet_bytes = &mut [0xA5, 0x87, 0x42, 0x00, 0x05,  0xF4, 0xF0, 0xA9, 0xAE, 0xAA, 0xAE, 0xA2, 0xAA, 0xAB, 0xA9, 0xA8, 0xA9, 0xAE, 0xAA, 0xAB, 0xAB, 0xA3, 0xAC, 0xAC, 0xAB, 0xAA, 0xAE, 0xAB, 0xAB, 0xA9, 0xBA, 0xAA, 0xAB, 0xAE, 0xAE, 0xAA, 0xAB, 0xA2, 0xA8, 0xAA, 0xA9, 0xAF, 0xAA, 0xAE, 0xA8, 0xAA, 0xA9, 0xAB, 0xAF, 0xAD, 0xAE, 0xA8, 0xAA, 0xA9, 0xAF, 0xAA, 0xAB, 0xAD, 0xAB, 0xAD, 0xAE, 0xAA, 0xA8, 0xAF, 0xAC, 0xA9, 0xA9, 0xAE, 0xAE, 0xAE, 0xAE, 0xAA, 0xA8, 0xA8, 0xA8, 0xAA, 0xAB, 0xAE, 0xAD, 0xA1, 0xA9, 0xAD, 0xAA, 0xA9, 0xA1, 0xA1, 0xA0, 0xAD, 0xBC, 0xA4, 0xBD, 0xBC, 0xBC, 0xBC, 0xA4, 0xB9, 0xA3, 0xAE, 0xAE, 0xA8, 0xAE, 0xAE, 0xA9, 0xAE, 0xAE, 0xA9, 0xAE, 0xAE, 0xA9, 0xA2, 0xA0, 0xAB, 0xAA, 0xBF, 0xB9, 0xA8, 0xA9, 0xAB, 0xA8, 0xA9, 0xA8, 0xA7, 0xB8, 0xAF, 0xAB, 0xA8, 0xA8, 0xA8, 0xAB, 0xAA, 0xA8, 0xA0, 0xAB, 0xAA, 0xAB, 0xA8, 0xA3, 0xA9, 0xA9, 0xAB, 0xA9, 0xA8, 0xA9, 0xAC, 0xA6, 0xB2, 0xA6, 0xA8, 0xA8, 0xAD, 0xA3, 0xBA, 0xB1, 0xA6, 0xB6, 0xB5, 0xB7, 0xB2, 0xA5, 0xAD, 0xBB, 0xA7, 0xAF, 0xA9, 0xAA, 0xA8, 0xA5, 0xAA, 0xA8, 0xAC, 0xAC, 0xAA, 0xAE, 0xBC, 0xAA, 0xA9, 0xA2, 0xAA, 0xAF, 0xBE, 0xAA, 0xA8, 0xA9, 0xAA, 0xAD, 0xA1, 0xAA, 0xAF, 0xA0, 0xAA, 0xA3, 0xBB, 0xA8, 0xAB, 0xAA, 0xAF, 0xAC, 0xA3, 0xAA, 0xAC, 0xAE, 0xAA, 0xAB, 0xAF, 0xAC, 0xAA, 0xAB, 0xAB, 0xA8, 0xAA, 0xAF, 0xA8, 0xAA, 0xA8, 0xA8, 0xAE, 0xAC, 0xAA, 0xAD, 0xAD, 0xAA, 0xAF, 0xA8, 0xAA, 0xA8, 0xA9, 0xAA, 0xAB, 0xA9, 0xAA, 0xAC, 0xA4, 0xAA, 0xA9, 0xAB, 0xAA, 0xAB, 0xA9, 0xAE, 0xAA, 0xAF, 0xAF, 0xAA, 0xAE, 0xAD, 0xAA, 0xAB, 0xA8, 0xAA, 0xAD, 0xA0, 0xAA, 0xAD, 0xAB, 0xAE, 0xAC, 0xA0, 0xAA, 0xAD, 0xA8, 0xAA, 0xAD, 0xAB, 0xAA, 0xA8, 0xAB, 0xA2, 0xB8, 0xAA, 0xAB, 0xA9, 0xAB, 0xAA, 0xA8, 0xA7, 0xA0, 0xAA, 0xAD, 0xA2, 0xAA, 0xAE, 0xAE, 0xAA, 0xA8, 0xA8, 0xA9, 0xA2, 0xAC, 0xA6, 0xA8, 0xAE, 0xAA, 0xA8, 0xAC, 0xAB, 0xAA, 0xA9, 0xAE, 0xAA, 0xAF, 0xA8, 0xAA, 0xAB, 0xA9, 0xA8, 0xAA, 0xAE, 0xA8, 0xAA, 0xA2, 0xA9, 0xAA, 0xA2, 0xAB, 0xAA, 0xAF, 0xA0, 0xAA, 0xAB, 0xAE, 0xAB, 0xAE, 0xAB, 0xAA, 0xAE, 0xAB, 0xAA, 0xAD, 0xA2, 0xAA, 0xA8, 0xA9, 0xB3, 0xA5, 0xA5, 0xA0, 0xAC, 0xAB, 0xAA, 0xA9, 0xAE, 0xAA, 0xA8, 0xA3, 0xAA, 0xAF, 0xA5, 0xAD, 0xAE, 0xAF, 0xAD, 0xAD, 0xB8, 0xA4, 0xBA, 0xA1, 0xAA, 0xAB, 0xAB, 0xA1, 0xAC, 0xAA, 0xAB, 0xAB, 0xAA, 0xA8, 0xAF, 0xAA, 0xA8, 0xA8, 0xAA, 0xAB, 0xA4, 0xA0, 0xAA, 0xA9, 0xA9, 0xA8, 0xAA, 0xAB, 0xAB, 0xA2, 0xAB, 0xAA, 0xA9, 0xA8, 0xA8, 0xAA, 0xAB, 0xA2, 0xA8, 0xAA, 0xA9, 0xAE, 0xAA, 0xA3, 0xA9, 0xAA, 0xAC, 0xAB, 0xAA, 0xAF, 0xAC, 0xAA, 0xA8, 0xA8, 0xAD, 0xA9, 0xAA, 0xA8, 0xA9, 0xA1, 0xA5, 0xA2, 0x8E, 0xB4, 0xA6, 0xA5, 0xA9, 0xA8, 0xAB, 0xAE, 0xA8, 0xAE, 0xA3, 0xA9, 0xA8, 0xAA, 0xAB, 0xA9, 0xAF, 0xAE, 0xA8, 0xAA, 0xAB, 0xBB, 0xA1, 0xAD, 0xA9, 0xAC, 0xAE, 0xA2, 0xAF, 0xBB, 0xAA, 0xAF, 0xA0, 0xA2, 0xBF, 0xA7, 0xB2, 0xB0, 0xB3, 0xB3, 0xB1, 0xB6, 0x8A, 0xBC, 0xB1, 0xB7, 0xB2, 0xB9, 0xAC, 0xAC, 0xAF, 0xA9, 0xAF, 0xAF, 0xAE, 0xA6, 0xA8, 0xA8, 0xAA, 0xA1, 0xB5, 0x80, 0xBA, 0xA8, 0xBE, 0xA4, 0xA6, 0xA1, 0xAF, 0xA9, 0xAA, 0xAB, 0xA8, 0xAF, 0xAA, 0xAE, 0x79, 0xAA, 0x53, 0xAA, 0xA2, 0xB2, 0xAA, 0x86, 0xAA, 0xA8, 0xAD, 0xAA, 0xA9, 0x85, 0xAA, 0xAB, 0xA9, 0xA9, 0xAA, 0xAF, 0xAC, 0xA6, 0xAA, 0xAF, 0xA5, 0xAA, 0x8A ];
-        let header = PacketHeader::Payload(PacketBody { response_length: 0x5F4, payload_length: payload_bytes.len() as u16 });
+        let frame_bytes = &mut [0xA5, 0x87, 0x42, 0x00, 0x05,  0xF4, 0xF0, 0xA9, 0xAE, 0xAA, 0xAE, 0xA2, 0xAA, 0xAB, 0xA9, 0xA8, 0xA9, 0xAE, 0xAA, 0xAB, 0xAB, 0xA3, 0xAC, 0xAC, 0xAB, 0xAA, 0xAE, 0xAB, 0xAB, 0xA9, 0xBA, 0xAA, 0xAB, 0xAE, 0xAE, 0xAA, 0xAB, 0xA2, 0xA8, 0xAA, 0xA9, 0xAF, 0xAA, 0xAE, 0xA8, 0xAA, 0xA9, 0xAB, 0xAF, 0xAD, 0xAE, 0xA8, 0xAA, 0xA9, 0xAF, 0xAA, 0xAB, 0xAD, 0xAB, 0xAD, 0xAE, 0xAA, 0xA8, 0xAF, 0xAC, 0xA9, 0xA9, 0xAE, 0xAE, 0xAE, 0xAE, 0xAA, 0xA8, 0xA8, 0xA8, 0xAA, 0xAB, 0xAE, 0xAD, 0xA1, 0xA9, 0xAD, 0xAA, 0xA9, 0xA1, 0xA1, 0xA0, 0xAD, 0xBC, 0xA4, 0xBD, 0xBC, 0xBC, 0xBC, 0xA4, 0xB9, 0xA3, 0xAE, 0xAE, 0xA8, 0xAE, 0xAE, 0xA9, 0xAE, 0xAE, 0xA9, 0xAE, 0xAE, 0xA9, 0xA2, 0xA0, 0xAB, 0xAA, 0xBF, 0xB9, 0xA8, 0xA9, 0xAB, 0xA8, 0xA9, 0xA8, 0xA7, 0xB8, 0xAF, 0xAB, 0xA8, 0xA8, 0xA8, 0xAB, 0xAA, 0xA8, 0xA0, 0xAB, 0xAA, 0xAB, 0xA8, 0xA3, 0xA9, 0xA9, 0xAB, 0xA9, 0xA8, 0xA9, 0xAC, 0xA6, 0xB2, 0xA6, 0xA8, 0xA8, 0xAD, 0xA3, 0xBA, 0xB1, 0xA6, 0xB6, 0xB5, 0xB7, 0xB2, 0xA5, 0xAD, 0xBB, 0xA7, 0xAF, 0xA9, 0xAA, 0xA8, 0xA5, 0xAA, 0xA8, 0xAC, 0xAC, 0xAA, 0xAE, 0xBC, 0xAA, 0xA9, 0xA2, 0xAA, 0xAF, 0xBE, 0xAA, 0xA8, 0xA9, 0xAA, 0xAD, 0xA1, 0xAA, 0xAF, 0xA0, 0xAA, 0xA3, 0xBB, 0xA8, 0xAB, 0xAA, 0xAF, 0xAC, 0xA3, 0xAA, 0xAC, 0xAE, 0xAA, 0xAB, 0xAF, 0xAC, 0xAA, 0xAB, 0xAB, 0xA8, 0xAA, 0xAF, 0xA8, 0xAA, 0xA8, 0xA8, 0xAE, 0xAC, 0xAA, 0xAD, 0xAD, 0xAA, 0xAF, 0xA8, 0xAA, 0xA8, 0xA9, 0xAA, 0xAB, 0xA9, 0xAA, 0xAC, 0xA4, 0xAA, 0xA9, 0xAB, 0xAA, 0xAB, 0xA9, 0xAE, 0xAA, 0xAF, 0xAF, 0xAA, 0xAE, 0xAD, 0xAA, 0xAB, 0xA8, 0xAA, 0xAD, 0xA0, 0xAA, 0xAD, 0xAB, 0xAE, 0xAC, 0xA0, 0xAA, 0xAD, 0xA8, 0xAA, 0xAD, 0xAB, 0xAA, 0xA8, 0xAB, 0xA2, 0xB8, 0xAA, 0xAB, 0xA9, 0xAB, 0xAA, 0xA8, 0xA7, 0xA0, 0xAA, 0xAD, 0xA2, 0xAA, 0xAE, 0xAE, 0xAA, 0xA8, 0xA8, 0xA9, 0xA2, 0xAC, 0xA6, 0xA8, 0xAE, 0xAA, 0xA8, 0xAC, 0xAB, 0xAA, 0xA9, 0xAE, 0xAA, 0xAF, 0xA8, 0xAA, 0xAB, 0xA9, 0xA8, 0xAA, 0xAE, 0xA8, 0xAA, 0xA2, 0xA9, 0xAA, 0xA2, 0xAB, 0xAA, 0xAF, 0xA0, 0xAA, 0xAB, 0xAE, 0xAB, 0xAE, 0xAB, 0xAA, 0xAE, 0xAB, 0xAA, 0xAD, 0xA2, 0xAA, 0xA8, 0xA9, 0xB3, 0xA5, 0xA5, 0xA0, 0xAC, 0xAB, 0xAA, 0xA9, 0xAE, 0xAA, 0xA8, 0xA3, 0xAA, 0xAF, 0xA5, 0xAD, 0xAE, 0xAF, 0xAD, 0xAD, 0xB8, 0xA4, 0xBA, 0xA1, 0xAA, 0xAB, 0xAB, 0xA1, 0xAC, 0xAA, 0xAB, 0xAB, 0xAA, 0xA8, 0xAF, 0xAA, 0xA8, 0xA8, 0xAA, 0xAB, 0xA4, 0xA0, 0xAA, 0xA9, 0xA9, 0xA8, 0xAA, 0xAB, 0xAB, 0xA2, 0xAB, 0xAA, 0xA9, 0xA8, 0xA8, 0xAA, 0xAB, 0xA2, 0xA8, 0xAA, 0xA9, 0xAE, 0xAA, 0xA3, 0xA9, 0xAA, 0xAC, 0xAB, 0xAA, 0xAF, 0xAC, 0xAA, 0xA8, 0xA8, 0xAD, 0xA9, 0xAA, 0xA8, 0xA9, 0xA1, 0xA5, 0xA2, 0x8E, 0xB4, 0xA6, 0xA5, 0xA9, 0xA8, 0xAB, 0xAE, 0xA8, 0xAE, 0xA3, 0xA9, 0xA8, 0xAA, 0xAB, 0xA9, 0xAF, 0xAE, 0xA8, 0xAA, 0xAB, 0xBB, 0xA1, 0xAD, 0xA9, 0xAC, 0xAE, 0xA2, 0xAF, 0xBB, 0xAA, 0xAF, 0xA0, 0xA2, 0xBF, 0xA7, 0xB2, 0xB0, 0xB3, 0xB3, 0xB1, 0xB6, 0x8A, 0xBC, 0xB1, 0xB7, 0xB2, 0xB9, 0xAC, 0xAC, 0xAF, 0xA9, 0xAF, 0xAF, 0xAE, 0xA6, 0xA8, 0xA8, 0xAA, 0xA1, 0xB5, 0x80, 0xBA, 0xA8, 0xBE, 0xA4, 0xA6, 0xA1, 0xAF, 0xA9, 0xAA, 0xAB, 0xA8, 0xAF, 0xAA, 0xAE, 0x79, 0xAA, 0x53, 0xAA, 0xA2, 0xB2, 0xAA, 0x86, 0xAA, 0xA8, 0xAD, 0xAA, 0xA9, 0x85, 0xAA, 0xAB, 0xA9, 0xA9, 0xAA, 0xAF, 0xAC, 0xA6, 0xAA, 0xAF, 0xA5, 0xAA, 0x8A ];
+        let header = FrameHeader::Payload(FrameBody { response_length: 0x5F4, payload_length: payload_bytes.len() as u16 });
 
-        test_receive_packet(packet_bytes, header, &payload_bytes, 0x87, false)
+        test_receive_frame(frame_bytes, header, &payload_bytes, 0x87, false)
     }
 }

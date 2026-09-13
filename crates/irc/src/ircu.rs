@@ -338,7 +338,7 @@ impl<Transport: AsyncRead + AsyncWrite + Unpin> IrcuMaster<Transport> {
                     debug_println!("Strange packet: {p:?}");
                     return Err(IrcuError::ProtocolError)
                 },
-                Err(e @ IrcError::CorruptPacket | e @ IrcError::Timeout) => {
+                Err(e @ IrcError::CorruptFrame | e @ IrcError::Timeout) => {
                     debug_println!("Error: {e:?}");
                     (
                         IrcuPacket::Retransmit,

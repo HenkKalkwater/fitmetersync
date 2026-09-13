@@ -202,7 +202,6 @@ name = "fms-cli"
 version = "0.1.0"
 dependencies = [
  "clap",
- "fms-irc",
  "fms-samu",
  "futures-lite",
  "serialport-stream",
